@@ -10,6 +10,23 @@
     z-index: 1000; /* Ensure it's above other content */
   }
   
+  .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px; // adjust based on how much space you want
+  text-align: center;
+  color: #888;
+  font-size: 18px;
+  font-weight: 500;
+
+  p {
+    margin: 0;
+  }
+}
+
+  
   .list{
     z-index: 0;
   }

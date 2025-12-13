@@ -13,6 +13,7 @@ import {
   ProductFilterOptions,
   ProductFilters,
 } from './product-filters/product-filters.model';
+import { SettingsService } from './settings.service';
 
 @Injectable({
   providedIn: 'root',
@@ -32,6 +33,8 @@ export class ProductsService {
   );
   currentProductFilters$ = this.currentProductFilters.asObservable();
 
+  private lastFetchedLocationId: string | null = null;
+
   constructor(private http: HttpClient, private route: Router) {
     this.loadProductsFromSessionStorage();
   }
@@ -49,16 +52,24 @@ export class ProductsService {
     sessionStorage.setItem('products', JSON.stringify(products));
   }
 
-  fetchProducts(): Observable<Product[]> {
-    if (this.products.value.length > 0) {
-      console.log('Products already loaded from session storage.');
-      return of(this.products.value); // Return existing products as an Observable
+  fetchProducts(location_id: string, toggleVape = true): Observable<Product[]> {
+    // Clear products if location has changed
+    if (this.lastFetchedLocationId && this.lastFetchedLocationId !== location_id) {
+      console.log('Location changed. Clearing previous products.');
+      this.products.next([]);
+      this.saveProductsToSessionStorage([]); // optional, if you’re syncing to session storage
+    }
+
+    // Return cached products if already loaded for the same location
+    if (this.products.value.length > 0 && this.lastFetchedLocationId === location_id) {
+      console.log('Products already loaded for this location.');
+      return of(this.products.value);
     }
   
     const options = {
       url: `${environment.apiUrl}/products/all-products`,
-      params: { venueId: environment.venueId },
-      headers: { 'Content-Type': 'application/json' },
+      params: { location_id, toggleVape: String(toggleVape) },
+      headers: {  'x-auth-api-key': environment.db_api_key,'Content-Type': 'application/json' },
     };
   
     return new Observable<Product[]>((observer) => {
@@ -215,9 +226,9 @@ export class ProductsService {
 
             const isMatchingSearch = searchQuery.trim() === '' || title.toLowerCase().includes(searchQuery.toLowerCase());
 
-            const isMatchingCategory =
-                searchQuery.trim() !== '' || category === this.currentCategory.value;
-  
+            const selectedCategory = this.currentCategory.value;
+            const isMatchingCategory = !selectedCategory || category === selectedCategory;
+            
             return (
               isMatchingSearch && 
               isMatchingCategory &&

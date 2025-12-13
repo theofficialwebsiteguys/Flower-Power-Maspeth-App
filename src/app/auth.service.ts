@@ -11,6 +11,7 @@ import { FcmService } from './fcm.service';
 import { ProductsService } from './products.service';
 import { Product } from './product/product.model';
 import { CapacitorHttp } from '@capacitor/core';
+import { LocationStateService } from './location-state.service';
 
 @Injectable({
   providedIn: 'root',
@@ -24,7 +25,7 @@ export class AuthService {
 
   private apiUrl = `${environment.apiUrl}/users`;
 
-  constructor(private http: HttpClient, private router: Router, @Inject(FcmService) private fcmService: FcmService, private productsService: ProductsService) {
+  constructor(private http: HttpClient, private router: Router, @Inject(FcmService) private fcmService: FcmService, private productsService: ProductsService, private locationStateService: LocationStateService) {
     const user = localStorage.getItem('user_info');
     if (user) {
       this.userSubject.next(JSON.parse(user));
@@ -203,6 +204,9 @@ export class AuthService {
   validateSession(): void {
     const sessionData = this.getSessionData();
 
+    const locationId = this.locationStateService.getLocationId();
+    console.log(locationId)
+
     if (!sessionData || this.isTokenExpired(sessionData.expiry)) {
       this.authStatus.next(false);
       this.removeToken();
@@ -213,10 +217,11 @@ export class AuthService {
     const headers = this.getHeaders();
 
     CapacitorHttp.get({
-      url: `${this.apiUrl}/validate-session`,
+      url: `${this.apiUrl}/validate-session?location_id=${locationId}`,
       headers,
     })
       .then((response) => {
+        console.log(response)
         if (response.status === 200) {
           this.authStatus.next(true);
           this.updateUserData();

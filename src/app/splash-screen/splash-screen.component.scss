@@ -109,3 +109,91 @@
     }
   }
 }
+
+
+.location-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.location-card {
+  padding: 16px;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Header */
+.location-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.location-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Open / Closed pill */
+.status-pill {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  font-weight: 600;
+
+  &.open {
+    background: #e6f4ea;
+    color: #1e7e34;
+  }
+
+  &.closed {
+    background: #fdecea;
+    color: #b02a37;
+  }
+}
+
+/* Meta row */
+.location-meta {
+  display: flex;
+  gap: 12px;
+  margin: 8px 0;
+  font-size: 0.85rem;
+  color: #555;
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    background: #999;
+    border-radius: 50%;
+  }
+}
+
+/* Address */
+.location-address {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 6px 0 14px;
+}
+
+/* CTA */
+.location-cta {
+  --border-radius: 12px;
+  font-weight: 600;
+}

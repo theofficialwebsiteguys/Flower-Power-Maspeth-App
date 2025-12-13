@@ -169,7 +169,7 @@
         <ion-radio [disabled]="selectedOrderType === 'delivery'" slot="start" value="card"></ion-radio>
         <ion-label>In Store - Debit</ion-label>
       </ion-item>
-      <ion-item lines="none" class="radio-item">
+      <ion-item lines="none" class="radio-item" *ngIf="locationId != 201">
         <ion-radio slot="start" value="aeropay"></ion-radio>
         <ion-label class="aeropay-label">
           <img class="aeropay-image" src="assets/aeropay.png" alt="Powered by Aeropay">

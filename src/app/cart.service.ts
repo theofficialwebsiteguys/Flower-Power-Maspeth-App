@@ -4,6 +4,7 @@ import { BehaviorSubject, catchError, forkJoin, map, Observable, of, switchMap, 
 import { environment } from 'src/environments/environment';
 import { AuthService } from './auth.service';
 import { CapacitorHttp } from '@capacitor/core';
+import { LocationStateService } from './location-state.service';
 
 export interface CartItem {
   id: string;
@@ -38,7 +39,7 @@ export class CartService {
 
   private inactivityTimer: any;
 
-  constructor(private http: HttpClient, private authService: AuthService) {
+  constructor(private http: HttpClient, private authService: AuthService, private locationStateService: LocationStateService) {
     if (!sessionStorage.getItem(this.cartKey)) {
       sessionStorage.setItem(this.cartKey, JSON.stringify([]));
     }
@@ -206,8 +207,9 @@ export class CartService {
     };
   
     const createOrder = async () => {
+      const alleavesCustomerId = await this.getOrCreateAlleavesCustomer(user_info);
       const orderDetails = {
-        id_customer: user_info.alleaves_customer_id,
+        id_customer: alleavesCustomerId,
         id_external: null,
         id_location: 1000,
         id_status: 1,
@@ -823,7 +825,8 @@ export class CartService {
   async placeOrder(user_id: number, pos_order_id: number, points_add: number, points_redeem: number, amount: number, cart: any) {
     const payload = { user_id, pos_order_id, points_add, points_redeem, amount, cart };
   
-  
+    const locationId = this.locationStateService.getLocationId();
+
     const sessionData = localStorage.getItem('sessionData');
     const token = sessionData ? JSON.parse(sessionData).token : null;
   
@@ -838,7 +841,7 @@ export class CartService {
     };
     
     const options = {
-      url: `${environment.apiUrl}/orders/create`,
+      url: `${environment.apiUrl}/orders/create?location_id=${locationId}`,
       method: 'POST',
       headers: headers,
       data: payload,
@@ -912,4 +915,41 @@ export class CartService {
     }
   }
   
+    private getAlleavesCustomerCacheKey(locationId: string | null) {
+        return `alleaves_customer_${locationId}`;
+      }
+
+    private async getOrCreateAlleavesCustomer(user: any): Promise<number> {
+    const locationId = this.locationStateService.getLocationId();
+    const cacheKey = this.getAlleavesCustomerCacheKey(locationId);
+
+    // 1️⃣ Try cache first
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      return Number(cached);
+    }
+
+    // 2️⃣ Create customer in Alleaves (location-scoped via token)
+    const customerPayload = {
+      name_first: user.fname,
+      name_last: user.lname,
+      phone: user.phone,
+      email: user.email,
+      date_of_birth: user.dob
+      // anything Alleaves requires
+    };
+
+    const created = await this.createCustomer(customerPayload);
+
+    if (!created?.id_customer) {
+      throw new Error('Failed to create Alleaves customer');
+    }
+
+    // 3️⃣ Cache for this session/location
+    sessionStorage.setItem(cacheKey, created.id_customer);
+
+    return created.id_customer;
+  }
+
+
 }

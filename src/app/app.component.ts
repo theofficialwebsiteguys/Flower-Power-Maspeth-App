@@ -17,6 +17,7 @@ import { Router } from '@angular/router';
 import { GeolocationService } from './geolocation.service';
 import { ModalController } from '@ionic/angular';
 import { RestrictedComponent } from './restricted/restricted.component';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-root',
@@ -41,6 +42,9 @@ export class AppComponent {
   showSplashScreen: boolean = true;
 
   isLoggedIn: boolean = false;
+
+  private subscriptions = new Subscription();
+  private restrictedModalOpen = false;
 
   constructor(
     private productService: ProductsService,
@@ -72,6 +76,7 @@ export class AppComponent {
   ngOnInit() {
     //this.checkGeoLocation();
     this.initializeApp();
+    this.listenForRestrictedLocation();
   }
   
   initializeApp() {
@@ -81,20 +86,51 @@ export class AppComponent {
     // Only check login after products are fetched
     this.authService.isLoggedIn().subscribe((status) => {
       this.isLoggedIn = status;
-      if (this.isLoggedIn) this.onCloseSplash();
     });
             
-    this.productService.fetchProducts().subscribe({
-      next: () => {
-        console.log("Products fetched successfully.");
+    // this.productService.fetchProducts().subscribe({
+    //   next: () => {
+    //     console.log("Products fetched successfully.");
   
 
-      },
-      error: (error) => {
-        console.error("Error fetching products:", error);
-      }
-    });
+    //   },
+    //   error: (error) => {
+    //     console.error("Error fetching products:", error);
+    //   }
+    // });
   }
+
+  private listenForRestrictedLocation() {
+    this.subscriptions.add(
+      this.settingsService.restrictedLocation$.subscribe(async (locationName) => {
+        if (!locationName || this.restrictedModalOpen) return;
+
+        this.restrictedModalOpen = true;
+
+        const modal = await this.modalController.create({
+          component: RestrictedComponent,
+          componentProps: {
+            locationName
+          },
+          backdropDismiss: false,
+          cssClass: 'restricted-modal',
+        });
+
+        modal.onDidDismiss().then(() => {
+          this.restrictedModalOpen = false;
+          this.settingsService.clearRestrictedLocation();
+        });
+
+        await modal.present();
+      })
+    );
+  }
+
+  ngOnDestroy() {
+    this.subscriptions.unsubscribe();
+  }
+
+
 
   onCloseSplash() {
     setTimeout(() => {
@@ -115,28 +151,28 @@ export class AppComponent {
   }
   
 
-  async checkGeoLocation() {
-    try {
-      const isInNY = await this.geoLocationService.isUserInNewYork();
+  // async checkGeoLocation() {
+  //   try {
+  //     const isInNY = await this.geoLocationService.isUserInNewYork();
   
-      if (!isInNY) {
-        this.showRestrictedAccessModal(); // Show the modal if the user is outside NY
-      } else {
-        this.initializeApp(); // Proceed with app initialization if in NY
-      }
-    } catch (error) {
-      console.error('Error during geo-check:', error);
-      this.showRestrictedAccessModal(); // Show modal in case of errors
-    }
-  }
+  //     if (!isInNY) {
+  //       this.showRestrictedAccessModal(); // Show the modal if the user is outside NY
+  //     } else {
+  //       this.initializeApp(); // Proceed with app initialization if in NY
+  //     }
+  //   } catch (error) {
+  //     console.error('Error during geo-check:', error);
+  //     this.showRestrictedAccessModal(); // Show modal in case of errors
+  //   }
+  // }
   
-  async showRestrictedAccessModal() {
-    const modal = await this.modalController.create({
-      component: RestrictedComponent,
-      backdropDismiss: false, // Prevent the modal from being dismissed
-      cssClass: 'restricted-modal',
-    });
+  // async showRestrictedAccessModal() {
+  //   const modal = await this.modalController.create({
+  //     component: RestrictedComponent,
+  //     backdropDismiss: false, // Prevent the modal from being dismissed
+  //     cssClass: 'restricted-modal',
+  //   });
 
-    await modal.present();
-  }
+  //   await modal.present();
+  // }
 }

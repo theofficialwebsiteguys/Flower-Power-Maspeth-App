@@ -1,5 +1,5 @@
 import { Component, Input, OnInit, SimpleChanges } from '@angular/core';
-import { Observable, of, startWith } from 'rxjs';
+import { Observable, of, startWith, tap } from 'rxjs';
 
 import { ProductsService } from '../products.service';
 
@@ -21,6 +21,8 @@ export class ProductListComponent implements OnInit {
 
   currentCategory: ProductCategory = 'PREROLL';
   products$: Observable<Product[]> = of([]);
+
+  hasLoaded = false;
 
   ngOnInit() {
     this.updateProducts();
@@ -48,13 +50,18 @@ export class ProductListComponent implements OnInit {
       this.accessibilityService.announce(message, 'polite');
     }
   }
-
+  
   private updateProducts() {
-    if (this.showSimilarItems) {
-      this.products$ = this.productService.getSimilarItems().pipe(startWith([]));
-    } else {
-      this.products$ = this.productService.getFilteredProducts(this.searchQuery).pipe(startWith([]));
-    }
+    this.hasLoaded = false;
+
+    const productStream = this.showSimilarItems
+      ? this.productService.getSimilarItems()
+      : this.productService.getFilteredProducts(this.searchQuery);
+
+    this.products$ = productStream.pipe(
+      startWith([]),
+      tap(() => this.hasLoaded = true)
+    );
   }
 
   onSearch(event: Event) {

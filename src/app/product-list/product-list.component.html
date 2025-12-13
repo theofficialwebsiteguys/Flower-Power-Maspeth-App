@@ -1,7 +1,7 @@
 <ion-col class="list" role="list" aria-label="Filtered product list">
 
-  <ng-container *ngIf="(products$ | async) as products; else loading">
-    <ng-container *ngIf="products.length > 0; else loading">
+  <ng-container *ngIf="(products$ | async) as products">
+    <ng-container *ngIf="products.length > 0; else emptyState">
       <ng-container *ngFor="let product of products">
         <app-product
           *ngIf="isCategoryVisible(product.category)"
@@ -12,6 +12,13 @@
       </ng-container>
     </ng-container>
   </ng-container>
+
+  <ng-template #emptyState>
+    <div *ngIf="hasLoaded; else loading" class="empty-state">
+      <p>No products found.</p>
+    </div>
+  </ng-template>
+
 
   <ng-template #loading>
     <div class="loading-container">

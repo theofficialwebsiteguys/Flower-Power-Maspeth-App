@@ -7,6 +7,7 @@ import { AeropayService } from '../aeropay.service';
 import { openWidget } from 'aerosync-web-sdk';
 import { SettingsService } from '../settings.service';
 import { FcmService } from '../fcm.service';
+import { LocationStateService } from '../location-state.service';
 
 @Component({
   selector: 'app-checkout',
@@ -104,6 +105,7 @@ export class CheckoutComponent implements OnInit {
 
   deliveryAddressValid: boolean = false;
 
+  locationId: any;
   
   constructor(
     private cartService: CartService,
@@ -113,12 +115,14 @@ export class CheckoutComponent implements OnInit {
     private authService: AuthService,
     private aeropayService: AeropayService,
     private settingsService: SettingsService,
-    private fcmService: FcmService
+    private fcmService: FcmService,
+    private locationStateService: LocationStateService
   ) {}
 
   async ngOnInit() {
     this.calculateDefaultTotals();
     this.checkDeliveryEligibility();
+    this.locationId = this.locationStateService.getLocationId();
   
     try {
       const res: any = await this.settingsService.getDeliveryZone();

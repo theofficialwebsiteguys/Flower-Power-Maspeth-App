@@ -6,19 +6,51 @@ import { AuthService } from './auth.service';
 import { environment } from 'src/environments/environment';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { CapacitorHttp, HttpResponse } from '@capacitor/core';
+import { GeoBounds, GeolocationService } from './geolocation.service';
+import { LocationStateService } from './location-state.service';
+import { CartService } from './cart.service';
+
+export interface AppLocation {
+  location_id: string;
+  name: string;
+  bounds?: GeoBounds; // dynamic geo fence
+}
 
 @Injectable({
   providedIn: 'root',
 })
 export class SettingsService {
   DARK_MODE_ENABLED = 'darkModeEnabled';
+  private readonly LOCATION_ID_KEY = 'selectedLocationId';
+  private readonly LOCATION_NAME_KEY = 'selectedLocationName';
 
   isLoggedIn: boolean = false;
+
+   /* ---------------- Locations ---------------- */
+
+  private locationsSubject = new BehaviorSubject<AppLocation[]>([]);
+  locations$ = this.locationsSubject.asObservable();
+
+  private selectedLocationIdSubject = new BehaviorSubject<string>(
+    localStorage.getItem(this.LOCATION_ID_KEY) ?? ''
+  );
+  selectedLocationId$ = this.selectedLocationIdSubject.asObservable();
+
+  private selectedLocationNameSubject = new BehaviorSubject<string>(
+    localStorage.getItem(this.LOCATION_NAME_KEY) ?? ''
+  );
+  selectedLocationName$ = this.selectedLocationNameSubject.asObservable();
+
+  private restrictedLocationSubject = new BehaviorSubject<string | null>(null);
+  restrictedLocation$ = this.restrictedLocationSubject.asObservable();
 
   constructor(
     @Inject(DOCUMENT) private document: Document,
     private authService: AuthService,
-    private http: HttpClient
+    private http: HttpClient,
+    private geoService: GeolocationService,
+    private locationState: LocationStateService,
+    private cartService: CartService
   ) {
     this.authService.isLoggedIn().subscribe((isLoggedIn) => {
       this.isLoggedIn = isLoggedIn;
@@ -233,5 +265,73 @@ export class SettingsService {
   
   
 
+  /* ---------------- Location Fetch ---------------- */
+  async fetchLocations(): Promise<AppLocation[]> {
+    const res = await CapacitorHttp.request({
+      url: `${environment.apiUrl}/businesses/getLocations`,
+      method: 'GET',
+      headers: { 'x-auth-api-key': environment.db_api_key },
+    });
+
+   const locations = (res.data?.locations ?? [])
+    .map((l: any) => ({
+      ...l,
+      bounds: this.boundsForLocation(l.address),
+    }))
+    .sort((a: any, b: any) => Number(a.id) - Number(b.id));
+
+
+    this.locationsSubject.next(locations);
+    return locations;
+  }
+
+  async selectLocation(id: string, name: string) {
+    const locations = this.locationsSubject.value;
+    const selected = locations.find(l => l.location_id === id);
+    if (!selected) return;
+    // Geo check
+    if (selected.bounds) {
+      const coords = await this.geoService.getUserCoords();
+      if (!coords || !this.geoService.isInsideBounds(coords, selected.bounds)) {
+        this.restrictedLocationSubject.next(name);
+        return;
+      }
+    }
+
+    this.locationState.setLocationId(id);
+
+    this.cartService.clearCart();
+
+    this.selectedLocationIdSubject.next(id);
+    localStorage.setItem(this.LOCATION_ID_KEY, id);
+    localStorage.setItem(this.LOCATION_NAME_KEY, name);
+  }
+
+
+  clearRestrictedLocation() {
+    this.restrictedLocationSubject.next(null);
+  }
+
+  getSelectedLocationId(): string {
+    return this.selectedLocationIdSubject.value;
+  }
+
+  getSelectedLocationName(): string {
+    return this.selectedLocationNameSubject.value;
+  }
+
+  private boundsForLocation(address: string): GeoBounds | undefined {
+    if (address.includes('NY')) {
+      return {
+        north: 45.0153,
+        south: 40.4774,
+        west: -79.7624,
+        east: -71.8562,
+      };
+    }
+
+    // future states go here
+    return undefined;
+  }
   
 }

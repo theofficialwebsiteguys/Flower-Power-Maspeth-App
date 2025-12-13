@@ -1,4 +1,10 @@
-<div class="splash-container" [@fadeOut] *ngIf="splashVisibility === 'visible'" role="dialog" aria-labelledby="splash-logo" aria-modal="true">
+<div
+  class="splash-container"
+  [@fadeOut]
+  role="dialog"
+  aria-labelledby="splash-logo"
+  aria-modal="true"
+>
   <div class="logo-container">
     <img [src]="logoSrc" [@logoAnimation]="logoState" class="logo" alt="App Logo" id="splash-logo" />
   </div>
@@ -24,4 +30,71 @@
       </ion-button>
     </div>
   </div>
+
+  <div *ngIf="selectedAgeConfirmed && locations.length > 0" class="location-selection" @fadeIn role="region"
+    aria-label="Select your location">
+  
+    <h2 class="location-heading">Choose Your Preferred Store</h2>
+  
+    <div class="location-grid">
+     <ion-card
+        class="location-card"
+        *ngFor="let loc of locations"
+        (click)="selectLocation(loc)"
+        button
+      >
+
+        <!-- Header -->
+        <div class="location-header">
+          <h3 class="location-name">{{ loc.name }}</h3>
+
+          <span
+            class="status-pill"
+            [class.open]="isOpenPickup(loc)"
+            [class.closed]="!isOpenPickup(loc)"
+          >
+            {{ isOpenPickup(loc) ? 'Open Now' : 'Closed' }}
+          </span>
+        </div>
+
+        <!-- Meta Row -->
+        <div class="location-meta">
+          <span class="meta-item">
+            <i class="dot"></i>
+            {{ todayPickupHours(loc) }}
+          </span>
+
+          <span
+            class="badge delivery"
+            *ngIf="loc.deliveryAvailable; else noDelivery"
+          >
+            Delivery Available
+          </span>
+
+          <ng-template #noDelivery>
+            <span class="badge muted">Pickup Only</span>
+          </ng-template>
+
+        </div>
+
+        <!-- Address -->
+        <p class="location-address">
+          {{ loc.address }}
+        </p>
+
+        <!-- CTA -->
+        <ion-button
+          expand="block"
+          color="primary"
+          class="location-cta"
+        >
+          Shop This Store
+        </ion-button>
+
+      </ion-card>
+
+  
+    </div>
+  </div>
+
 </div>
