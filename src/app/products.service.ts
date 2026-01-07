@@ -222,7 +222,7 @@ export class ProductsService {
             };
   
             // Default THC to 100 if null or undefined
-            const defaultThc = thc ?? '100% THC';
+            const thcValue = this.parseThcValue(thc);
 
             const isMatchingSearch = searchQuery.trim() === '' || title.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -239,7 +239,7 @@ export class ProductsService {
                   strainType.toUpperCase().split(' ').includes(s)
                 )) &&
               (!weight || isEmpty(weights) || weights.includes(weight)) &&
-              (!defaultThc || isInRange(Number(defaultThc.split('%')[0]), thcRange))
+              (thcValue === null || isInRange(thcValue, thcRange))
             );
           })
           .sort(
@@ -270,7 +270,7 @@ export class ProductsService {
                 case 'THC': {
                   // Extract THC percentage, ensuring null/undefined default to 100
                   const extractThcValue = (thc: string | null | undefined): number => {
-                    return thc ? Number(thc.replace('% THC', '')) : 0;
+                    return this.parseThcValue(thc) ?? 0;
                   };
                 
                   const thcValueA = extractThcValue(thcA);
@@ -301,7 +301,12 @@ export class ProductsService {
     );
   }
   
-  
+  private parseThcValue(thc: string | null | undefined): number | null {
+    if (!thc) return null;
+
+    const match = thc.match(/(\d{1,3}(?:\.\d{1,2})?)/);
+    return match ? Number(match[1]) : null;
+  }
 
   getProductFilterOptions(): Observable<ProductFilterOptions> {
     return this.products$.pipe(
