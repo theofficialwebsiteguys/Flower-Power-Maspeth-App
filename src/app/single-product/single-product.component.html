@@ -16,6 +16,7 @@
       [src]="getProductImage(currentProduct)"
       [alt]="currentProduct.title ? currentProduct.title + ' image' : 'Product Image'"
     />
+    <span *ngIf="currentProduct.strainType" class="strain-badge">{{ currentProduct.strainType | lowercase }}</span>
   </div>
 
   <div class="product-info" aria-labelledby="product-title" aria-describedby="product-description product-price product-strain product-weight">

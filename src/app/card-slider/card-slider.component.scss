@@ -10,12 +10,6 @@
   }
 }
 
-.view-all{
-  display: flex;
-  text-decoration: none;
-  color: black;
-}
-
 .card-details {
   display: flex;
   flex-direction: column;
@@ -45,17 +39,14 @@
 }
 
 .category-section {
-  padding: 20px 24px 16px;
+  padding: 18px 18px 14px;
+  margin: 0 12px 16px;
+  background: var(--fp-surface, #fff);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
 
   &:first-child {
-    padding-top: 0; /* Removes top padding only for the first section */
-  }
-
-  &:nth-child(even) {
-    background-color: rgba(var(--ion-color-secondary-rgb), 0.7) !important;
-  }
-  &:nth-child(4n-2) {
-    background-color: rgba(var(--ion-color-primary-rgb), 0.6) !important;
+    margin-top: 12px;
   }
 }
 
@@ -64,50 +55,64 @@
   align-items: center;
 }
 
+.view-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--fp-text, #1c2b27);
+  transition: opacity 0.15s ease;
+
+  &:active {
+    opacity: 0.7;
+  }
+}
+
 .section-header h2 {
-  font-size: 1.7em;
+  font-size: 1.4em;
+  font-weight: 700;
   text-transform: capitalize;
-  margin: 0 6px 0 0;
+  margin: 0;
 }
 
 .slider-container {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none; /* Hides scrollbar on Firefox */
-  padding: 20px 0;
+  padding: 14px 0 4px;
 }
 
 .slider {
   display: flex;
-  gap: 20px;
+  gap: 14px;
 }
 
 .slide {
   flex: 0 0 auto;
-  width: 196px;
-  height: 284px;
+  width: 210px;
+  height: 290px;
 }
 
 .card {
   width: 100%;
   height: 100%;
-  background-color: #fff;
-  border-radius: 15px; /* Slightly more rounded corners */
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1); /* Enhanced shadow for depth */
+  background-color: var(--fp-surface, #fff);
+  border-radius: var(--fp-radius-md, 12px);
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--card-border);
   overflow: hidden;
   position: relative;
-  transform: scale(1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
 
-  &:hover {
-    transform: scale(1.05); /* Slight zoom-in effect */
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2), 0 4px 6px rgba(0, 0, 0, 0.15); /* Larger shadow on hover */
+  &:active {
+    transform: scale(0.98);
+    box-shadow: var(--card-shadow-hover);
   }
 }
 
 .arrow-icon {
-  font-size: 1.8em;
-  color: black;
+  font-size: 1.3em;
+  color: var(--ion-color-primary);
 }
 
 .product-title {

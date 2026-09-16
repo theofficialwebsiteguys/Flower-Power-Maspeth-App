@@ -61,17 +61,17 @@
         <ion-label>Pickup</ion-label>
       </ion-item>
       <ion-item lines="none" class="radio-item">
-        <ion-radio slot="start" value="delivery" [disabled]="!enableDelivery || finalTotal < 90"></ion-radio>
+        <ion-radio slot="start" value="delivery" [disabled]="!enableDelivery || finalTotal < deliveryMin"></ion-radio>
         <ion-label>Delivery</ion-label>
       </ion-item>
     </ion-radio-group>
-    
+
     <!-- Conditional message for Delivery -->
     <p *ngIf="!enableDelivery" class="delivery-warning">
       Delivery is currently turned off.
     </p>
-    <p *ngIf="enableDelivery && finalTotal < 90" class="delivery-warning">
-      Orders must be at least $90 for delivery.
+    <p *ngIf="enableDelivery && finalTotal < deliveryMin" class="delivery-warning">
+      Orders must be at least {{ deliveryMin | currency }} for delivery.
     </p>
     
   
@@ -169,7 +169,7 @@
         <ion-radio [disabled]="selectedOrderType === 'delivery'" slot="start" value="card"></ion-radio>
         <ion-label>In Store - Debit</ion-label>
       </ion-item>
-      <ion-item lines="none" class="radio-item" *ngIf="locationId != 201">
+      <ion-item lines="none" class="radio-item">
         <ion-radio slot="start" value="aeropay"></ion-radio>
         <ion-label class="aeropay-label">
           <img class="aeropay-image" src="assets/aeropay.png" alt="Powered by Aeropay">
@@ -214,48 +214,17 @@
 
   <div class="section order-summary">
     <h2>Order Summary</h2>
-    <div *ngIf="checkoutInfo.user_info.premium" class="premium-banner">
-      🎉 You're a Premium Member! Orders over $100 get an extra 10% off.
-    </div>    
     <div class="summary" aria-live="polite">
       <p>
-        Subtotal: <span>{{ finalSubtotal | currency }}</span>
+        Subtotal: <span>{{ originalSubtotal | currency }}</span>
       </p>
-      <p>
-        Available Points: <span>{{ checkoutInfo.user_info.points }}</span>
+      <p *ngIf="totalEstimatedSavings > 0">
+        Deals Applied:
+        <span>-{{ totalEstimatedSavings | currency }}</span>
       </p>
-      <p>
-        Potential Savings:
-        <span>{{ checkoutInfo.user_info.points * pointValue | currency }}</span>
+      <p *ngIf="appliedDeliveryFee > 0">
+        Delivery Fee: <span>{{ appliedDeliveryFee | currency }}</span>
       </p>
-      <p>
-        Points to Redeem: <span>{{ pointsToRedeem }}</span>
-      </p>
-      <ion-item lines="none" class="points-slider">
-        <ion-range
-          [(ngModel)]="pointsToRedeem"
-          [min]="0"
-          [max]="maxRedeemablePoints"
-          [step]="1"
-          (ionChange)="updateTotals()"
-          aria-label="Adjust points to redeem for discount"
-        >
-          <ion-label slot="start">0</ion-label>
-          <ion-label slot="end">{{ maxRedeemablePoints }}</ion-label>
-        </ion-range>
-      </ion-item>
-      <p>
-        Discount Applied:
-        <span>{{ pointsToRedeem * pointValue | currency }}</span>
-      </p>
-      <p *ngIf="premiumDiscountApplied">
-        Premium Member Discount (10%): 
-        <span>-{{ premiumDiscountAmount | currency }}</span>
-      </p>
-      <p *ngIf="employeeDiscountApplied">
-        Staff Discount:
-        <span>-{{ employeeDiscountAmount | currency }}</span>
-      </p>      
       <p>
         Tax: <span>{{ finalTax | currency }}</span>
       </p>

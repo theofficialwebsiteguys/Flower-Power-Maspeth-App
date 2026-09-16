@@ -3,8 +3,11 @@ ion-tab-bar {
   left: 0;
   width: 100%;
   z-index: 10; /* Lower z-index for a softer overlay effect */
-  box-shadow: 0 -1px 5px rgba(0, 0, 0, 0.1); /* Softer, more subtle shadow */
-  border-top: 1px solid rgba(0, 0, 0, 0.05); /* Thin and light border for separation */
+  --background: rgba(255, 255, 255, 0.92);
+  border: none;
+  border-radius: var(--fp-radius-lg, 18px) var(--fp-radius-lg, 18px) 0 0;
+  box-shadow: var(--fp-shadow-md, 0 4px 16px rgba(26, 58, 46, 0.1));
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .icon {

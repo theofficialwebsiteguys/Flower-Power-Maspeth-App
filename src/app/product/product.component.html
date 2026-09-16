@@ -1,27 +1,49 @@
-<ion-item (click)="updateProductDisplay()" role="button" [attr.aria-label]="'View details for ' + product.title">
-  <ion-row class="container">
-    <img [src]="getProductImage(product)" [alt]="product.title + ' image'" />
-    <ion-label class="info">
-      <p>{{ product.brand }}</p>
-      <h1 class="product-title">{{ product.title }}</h1>
-      <p class="capitalize">{{ product.strainType | lowercase }}</p>
-      <p>{{ product.thc }}</p>
-      <ion-row class="weightAndPrice">
-        <h3>{{ product.weight }}</h3>
-        <h2>{{ product.price | currency }}</h2>
-      </ion-row>
+<div
+  class="product-card"
+  (click)="updateProductDisplay()"
+  (keydown.enter)="updateProductDisplay()"
+  (keydown.space)="updateProductDisplay()"
+  role="button"
+  tabindex="0"
+  [attr.aria-label]="'View details for ' + product.title"
+>
+  <div class="product-image-wrapper">
+    <img [src]="getProductImage(product)" [alt]="product.title + ' image'" class="product-image" />
 
-      <ng-container *ngIf="isLoggedIn">
-        <ion-row class="quantity-controls">
-          <button (click)="adjustQuantity(-1, $event)" [attr.aria-label]="'Decrease quantity of ' + product.title">-</button>
-          <span aria-live="polite">{{ quantity }}</span>
-          <button (click)="adjustQuantity(1, $event)" [attr.aria-label]="'Increase quantity of ' + product.title">+</button>
-        </ion-row>
-        <ion-button class="add-to-cart-btn" expand="block" color="primary" (click)="addToCart($event)" [attr.aria-label]="'Add ' + product.title + ' to cart'">
-          Add to Cart
-        </ion-button>
-      </ng-container>
-    </ion-label>
-  </ion-row>
-</ion-item>
+    <span *ngIf="product.strainType" class="strain-badge strain-badge--{{ product.strainType.toLowerCase() }}">
+      {{ product.strainType | lowercase }}
+    </span>
 
+    <span *ngIf="primaryDiscount" class="discount-badge" [ngClass]="discountBadgeClass">
+      {{ discountBadgeLabel }}
+    </span>
+
+    <button
+      *ngIf="isLoggedIn"
+      type="button"
+      class="add-to-cart-button"
+      [class.added]="isAdded"
+      (click)="addToCart($event)"
+      [attr.aria-label]="isAdded ? (product.title + ' added to cart') : ('Add ' + product.title + ' to cart')"
+    >
+      <ion-icon *ngIf="isAdded" name="checkmark-outline" aria-hidden="true"></ion-icon>
+      <ion-icon *ngIf="!isAdded" name="add-outline" aria-hidden="true"></ion-icon>
+    </button>
+  </div>
+
+  <div class="product-info">
+    <p class="product-brand" *ngIf="product.brand">{{ product.brand }}</p>
+    <h3 class="product-title">{{ product.title }}</h3>
+    <p class="product-weight" *ngIf="product.weight || product.thc">
+      {{ product.weight }}<span *ngIf="product.weight && product.thc"> &middot; </span>{{ product.thc }}
+    </p>
+
+    <p class="product-price" *ngIf="discountedPrice !== null; else regularPrice">
+      <span class="original-price">{{ product.price | currency }}</span>
+      <span class="sale-price">{{ discountedPrice | currency }}</span>
+    </p>
+    <ng-template #regularPrice>
+      <p class="product-price">{{ product.price | currency }}</p>
+    </ng-template>
+  </div>
+</div>

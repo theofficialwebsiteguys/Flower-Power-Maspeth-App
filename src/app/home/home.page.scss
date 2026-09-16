@@ -8,16 +8,15 @@
   
     .guest-header {
       margin-bottom: 20px;
-  
+
       h1 {
         font-size: 1.8rem;
-        font-weight: 700;
-        color: #333;
+        color: var(--fp-text);
       }
-  
+
       p {
         font-size: 1rem;
-        color: #666;
+        color: var(--fp-text-muted);
         margin-top: 10px;
       }
     }

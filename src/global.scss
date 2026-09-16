@@ -73,14 +73,50 @@
 
 body{
   --ion-background-color: var(--ion-background-primary);
+  --ion-font-family: "DM Sans", "Roboto", sans-serif;
 
-  p, h2{
-    font-family: "Noto Sans Display", serif;
-    font-optical-sizing: auto;
+  // Design tokens ported 1:1 from maspeth-shop's :root (src/styles.scss) — the actual
+  // shop/checkout app's design system, since this app is fundamentally a shopping
+  // experience, not a marketing site. Keep these names in sync with maspeth-shop so
+  // future style ports stay a straight copy-paste.
+  --fp-green: #25463d;
+  --fp-green-dark: #1a3a2e;
+  --fp-green-mid: #3d6b5e;
+  --fp-green-pale: #eaf2ef;
+  --fp-green-border: #c8ddd8;
+  --fp-bg: #f5f8f7;
+  --fp-surface: #ffffff;
+  --fp-text: #1c2b27;
+  --fp-text-muted: #5a7168;
+  --fp-text-light: #9db5ae;
+  --fp-radius-sm: 8px;
+  --fp-radius-md: 12px;
+  --fp-radius-lg: 18px;
+  --fp-shadow-sm: 0 1px 4px rgba(26, 58, 46, 0.08);
+  --fp-shadow-md: 0 4px 16px rgba(26, 58, 46, 0.10);
+  --fp-shadow-lg: 0 8px 32px rgba(26, 58, 46, 0.14);
+
+  // Design tokens shared by card-style surfaces (product cards, category chips, etc.)
+  // — aliased to the --fp-* tokens above so cards/chips/buttons all move together.
+  --card-radius: var(--fp-radius-lg);
+  --card-shadow: var(--fp-shadow-sm);
+  --card-shadow-hover: var(--fp-shadow-md);
+  --card-border: var(--fp-green-border);
+
+  font-family: "DM Sans", "Roboto", sans-serif;
+
+  // Kaushan Script is the website's display/hero font (fpd-maspeth-website) — reserved
+  // for page-level h1 "brand moments" only. h2+ stay in DM Sans since checkout/section
+  // headings need to stay legible at small sizes, not decorative — matches maspeth-shop,
+  // where h1–h6 are all DM Sans/Roboto (no script font in the shop's own functional UI).
+  h1 {
+    font-family: "Kaushan Script", cursive;
     font-weight: 400;
-    font-style: normal;
-    font-variation-settings:
-      "wdth" 100;
+    letter-spacing: 0.3px;
+  }
+
+  h2, h3, h4, h5, h6 {
+    font-weight: 600;
   }
 
   .icon-wrapper{
@@ -92,13 +128,49 @@ body{
     ion-label {
       color: #b8b8b8;
     }
-    
+
     &.tab-selected {
       i,
       ion-label {
         color: var(--ion-color-primary);
       }
     }
+  }
+
+  // Global ion-button treatment — matches maspeth-shop's native <button> styling
+  // (src/styles.scss) exactly, so every button across the app (login, checkout, cart,
+  // account, product detail) looks consistent without per-page overrides.
+  ion-button {
+    --border-radius: var(--fp-radius-sm);
+    --box-shadow: none;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+
+    &[fill="solid"], &:not([fill]) {
+      --background: var(--ion-color-primary);
+      --background-hover: var(--ion-color-primary-shade);
+      --background-activated: var(--ion-color-primary-shade);
+      --color: #ffffff;
+    }
+
+    &[fill="outline"] {
+      --border-color: var(--fp-green-border);
+      --color: var(--ion-color-primary);
+    }
+
+    &[fill="clear"] {
+      --color: var(--ion-color-primary);
+    }
+  }
+
+  // Rounded, brand-consistent form fields — matches maspeth-shop's form input styling
+  // (border, radius, focus state) wherever ion-item is used as a text-input wrapper.
+  ion-item.rounded-input {
+    --border-radius: var(--fp-radius-sm);
+    --border-color: var(--fp-green-border);
+    --background: var(--fp-surface);
+    --highlight-color-focused: var(--ion-color-primary);
   }
 }
 
@@ -165,28 +237,15 @@ body {
     }
 
     .category-section {
-      * {
-        background-color: transparent;
-      }
+      // Category shelves are a fixed white/light "elevated card" surface in both
+      // themes (see card-slider.component.scss) — so their own text/icons stay dark
+      // regardless of theme, they just need excluding from the app-wide dark-mode
+      // text/background flip below.
+      background-color: var(--fp-surface) !important;
 
-      img {
-        background-color: var(--ion-color-light);
-      }
-
-      &:nth-child(even) {
-        background-color: var(--ion-color-secondary) !important;
-        .section-header h2,
-        .arrow-icon {
-          color: var(--ion-color-dark);
-        }
-      }
-
-      &:nth-child(4n-2) {
-        background-color: var(--ion-color-primary) !important;
-        .section-header h2,
-        .arrow-icon {
-          color: var(--ion-color-dark-contrast);
-        }
+      .section-header h2,
+      .arrow-icon {
+        color: var(--fp-text) !important;
       }
     }
 
@@ -217,24 +276,6 @@ body {
       .price,
       .see-more {
         color: var(--ion-color-secondary);
-      }
-    }
-
-    .points-container {
-      .points-value {
-        color: var(--ion-color-secondary) !important;
-      }
-
-      .membership-status {
-        color: rgba(var(--ion-color-dark-contrast-rgb), 0.9) !important;
-      }
-
-      .progress-bar {
-        background-color: var(--ion-color-secondary) !important;
-      }
-
-      .points-badge {
-        background-color: var(--ion-color-secondary) !important;
       }
     }
 
@@ -321,10 +362,6 @@ body {
 
     .login-container {
       background-color: var(--ion-color-dark);
-    }
-
-    .points-display {
-      color: var(--ion-color-secondary) !important;
     }
   }
 }

@@ -1,29 +1,31 @@
 // For information on how to create your own theme, please see:
 // http://ionicframework.com/docs/theming/
 
+// Primary palette matches maspeth-shop's actual shop/checkout UI
+// (maspeth-shop src/styles.scss --fp-green family) since this is a shopping
+// app — the website's brighter #1E4D3E is reserved for hero/brand moments
+// only (see global.scss). Secondary sage accent comes from the website.
 :root {
-  --ion-background-primary: #f8f8f8;
+  --ion-background-primary: #f5f8f7;
 
   --ion-color-primary: #25463d;
-  --ion-color-primary-rgb: 107, 143, 113;
+  --ion-color-primary-rgb: 37, 70, 61;
   --ion-color-primary-contrast: #ffffff;
   --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #213e36;
-  --ion-color-primary-tint: #3b5950;
+  --ion-color-primary-shade: #1a3a2e;
+  --ion-color-primary-tint: #3d6b5e;
 
-  --ion-color-secondary: #f1bb09;
-  --ion-color-secondary-rgb: 241, 187, 9;
+  --ion-color-secondary: #5db890;
+  --ion-color-secondary-rgb: 93, 184, 144;
   --ion-color-secondary-contrast: #000000;
   --ion-color-secondary-contrast-rgb: 0, 0, 0;
-  --ion-color-secondary-shade: #d4a508;
-  --ion-color-secondary-tint: #f2c222;
+  --ion-color-secondary-shade: #4f9c7a;
+  --ion-color-secondary-tint: #6dbf9b;
 
-  --ion-color-danger: #d32f2f;
-  --ion-color-danger-rgb: 211, 47, 47;
+  --ion-color-danger: #b52c2c;
+  --ion-color-danger-rgb: 181, 44, 44;
   --ion-color-danger-contrast: #ffffff;
   --ion-color-danger-contrast-rgb: 255, 255, 255;
-  --ion-color-danger-shade: #ba2929;
-  --ion-color-danger-tint: #d74444;
-
-  --brand-primary: red;
+  --ion-color-danger-shade: #9a2525;
+  --ion-color-danger-tint: #bc4141;
 }

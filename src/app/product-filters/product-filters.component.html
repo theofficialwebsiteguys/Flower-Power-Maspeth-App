@@ -1,8 +1,11 @@
 <div class="button-container">
-  <ion-button (click)="setOpen(true)" aria-label="Open sort and filter options">Sort + Filter</ion-button>
-  <ion-button (click)="clearFilters()" *ngIf="hasDirtyFilters" fill="clear" aria-label="Clear all applied filters">
+  <button type="button" class="filter-trigger" (click)="setOpen(true)" aria-label="Sort and Filter">
+    <ion-icon name="options-outline" aria-hidden="true"></ion-icon>
+    Sort &amp; Filter
+  </button>
+  <button type="button" class="clear-trigger" (click)="clearFilters()" *ngIf="hasDirtyFilters" aria-label="Clear Filters">
     Clear Filters
-  </ion-button>
+  </button>
 </div>
 
 <ion-modal [isOpen]="isModalOpen" (ionModalDidDismiss)="setOpen(false)" aria-labelledby="sort-filter-title">

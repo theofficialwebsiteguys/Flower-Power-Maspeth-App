@@ -6,14 +6,13 @@
   <app-card-slider></app-card-slider>
   <div class="guest-container" *ngIf="!isLoggedIn" aria-labelledby="rewards-heading">
     <div class="guest-header">
-      <h1>Join Our Rewards Program!</h1>
+      <h1>Create an Account</h1>
       <p>
-        Sign up for free or upgrade to our exclusive Membership for even more
-        perks!
+        Sign up for free to check out faster and track your orders.
       </p>
     </div>
 
-    <ion-button expand="block" routerLink="/auth" [queryParams]="{ mode: 'register' }" aria-label="Sign up for our free rewards program">Sign Up for Free</ion-button
+    <ion-button expand="block" routerLink="/auth" [queryParams]="{ mode: 'register' }" aria-label="Create a free account">Sign Up for Free</ion-button
     >
   </div>
 </ion-content>

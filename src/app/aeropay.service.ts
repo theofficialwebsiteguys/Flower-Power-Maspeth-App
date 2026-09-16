@@ -1,4 +1,3 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { CapacitorHttp } from '@capacitor/core';
 import { from, Observable, tap } from 'rxjs';
@@ -10,29 +9,26 @@ import { v4 as uuidv4 } from 'uuid';
 })
 export class AeropayService {
   private merchantToken: string | null = null;
+  private merchantTokenExpiry: number = 0;
   private usedForMerchantToken: string | null = null;
+  private usedForMerchantTokenExpiry: number = 0;
 
   constructor() {}
 
-  private async httpPost(url: string, data: any, token?: string): Promise<any> {
+  private async httpPost(url: string, data: any, token?: string, extraHeaders?: Record<string, string>): Promise<any> {
     const headers: any = {
       'Content-Type': 'application/json',
       'accept': 'application/json',
-      ...(token ? { 'authorizationToken': `Bearer ${token}` } : {})
+      ...(token ? { 'authorization': `Bearer ${token}` } : {}),
+      ...(extraHeaders || {})
     };
-  
-    // Add 'X-API-Version': '1.1' if the request is for creating a user
-    if (url.includes('/user')) {
-      headers['X-API-Version'] = '1.1';
-    }
-    console.log(headers)
-  
+
     const options: any = {
       url: url,
       headers: headers,
       data: data,
     };
-  
+
     return CapacitorHttp.post(options);
   }
 
@@ -42,7 +38,7 @@ export class AeropayService {
       headers: {
         'Content-Type': 'application/json',
         'accept': 'application/json',
-        ...(token ? { 'authorizationToken': `Bearer ${token}` } : {})
+        ...(token ? { 'authorization': `Bearer ${token}` } : {})
       }
     };
     return CapacitorHttp.get(options);
@@ -51,11 +47,11 @@ export class AeropayService {
   fetchMerchantToken(): Observable<any> {
     const payload = {
       scope: 'merchant',
-      api_key: environment.aeropay_api_key,
-      api_secret: environment.aeropay_api_secret,
+      apiKey: environment.aeropay_api_key,
+      apiSecret: environment.aeropay_api_secret,
       id: environment.aeropay_merchant_id
     };
-    return from(this.httpPost(`${environment.aeropay_url}/token`, payload)).pipe(
+    return from(this.httpPost(`${environment.aeropay_url}/v2/token`, payload)).pipe(
       tap(response => {
         if (response.data?.token) {
           this.setMerchantToken(response.data.token, response.data.TTL);
@@ -64,15 +60,15 @@ export class AeropayService {
     );
   }
 
-  fetchUsedForMerchantToken(userId: any): Observable<any> {
+  fetchUsedForMerchantToken(userId: string): Observable<any> {
     const payload = {
       scope: 'userForMerchant',
-      api_key: environment.aeropay_api_key,
-      api_secret: environment.aeropay_api_secret,
+      apiKey: environment.aeropay_api_key,
+      apiSecret: environment.aeropay_api_secret,
       id: environment.aeropay_merchant_id,
       userId: userId
     };
-    return from(this.httpPost(`${environment.aeropay_url}/token`, payload)).pipe(
+    return from(this.httpPost(`${environment.aeropay_url}/v2/token`, payload)).pipe(
       tap(response => {
         if (response.data?.token) {
           this.setUsedForMerchantToken(response.data.token, response.data.TTL);
@@ -81,50 +77,58 @@ export class AeropayService {
     );
   }
 
-  createUser(userData: any): Observable<any> {
-    return from(this.httpPost(`${environment.aeropay_url}/user`, userData, this.getMerchantToken() || '')).pipe(
-      tap(response => console.log(response))
-    );
+  createUser(userData: { firstName: string; lastName: string; phoneNumber: string; email: string }): Observable<any> {
+    return from(this.httpPost(`${environment.aeropay_url}/v2/user`, userData, this.getMerchantToken() || ''));
   }
 
-  verifyUser(userId: string, code: string): Observable<any> {
-    return from(this.httpPost(`${environment.aeropay_url}/confirmUser`, { userId, code }, this.getMerchantToken() || '')).pipe(
-      tap(response => console.log(response))
-    );
+  confirmUser(userId: string, code: string): Observable<any> {
+    const payload = {
+      userId,
+      code,
+      merchantId: environment.aeropay_merchant_id
+    };
+    return from(this.httpPost(`${environment.aeropay_url}/v2/confirmUser`, payload, this.getMerchantToken() || ''));
+  }
+
+  getBankAccounts(): Observable<any> {
+    return from(this.httpGet(`${environment.aeropay_url}/v2/bankAccounts`, this.getUsedForMerchantToken() || ''));
   }
 
   getAerosyncCredentials(): Observable<any> {
-    return from(this.httpGet(`${environment.aeropay_url}/aggregatorCredentials?aggregator=aerosync`, this.getUsedForMerchantToken() || '')).pipe(
-      tap(response => console.log(response))
-    );
+    return from(this.httpGet(`${environment.aeropay_url}/v2/aggregatorCredentials?aggregator=aerosync`, this.getUsedForMerchantToken() || ''));
   }
 
-  linkBankAccount(userId: string, userPassword: string): Observable<any> {
+  linkBankAccount(connectionId: string): Observable<any> {
     const payload = {
-      user_id: userId,
-      user_password: userPassword,
+      connectionId,
       aggregator: 'aerosync'
     };
-    return from(this.httpPost(`${environment.aeropay_url}/linkAccountFromAggregator`, payload, this.getUsedForMerchantToken() || '')).pipe(
-      tap(response => console.log(response))
-    );
+    return from(this.httpPost(`${environment.aeropay_url}/v2/linkAccountFromAggregator`, payload, this.getUsedForMerchantToken() || ''));
   }
 
-  createTransaction(amount: string, bankAccountId: string | null): Observable<any> {
-    const transactionUUID = uuidv4();
+  createPreauthTransaction(amountInPennies: number, bankAccountId: string | number): Observable<any> {
     const payload = {
-      amount: amount,
+      amount: { currency: 'USD', amount: amountInPennies },
       merchantId: environment.aeropay_merchant_id,
-      uuid: transactionUUID,
-      bankAccountId: bankAccountId
+      bankAccountId
     };
-    return from(this.httpPost(`${environment.aeropay_url}/transaction`, payload, this.getUsedForMerchantToken() || '')).pipe(
-      tap(response => console.log(response))
-    );
+    return from(this.httpPost(
+      `${environment.aeropay_url}/v2/preauthTransaction`,
+      payload,
+      this.getUsedForMerchantToken() || '',
+      { 'Idempotency-Key': uuidv4() }
+    ));
+  }
+
+  capturePreauthTransaction(preauthTransactionId: string): Observable<any> {
+    const payload = { id: preauthTransactionId };
+    return from(this.httpPost(`${environment.aeropay_url}/v2/capturePreauthTransaction`, payload, this.getMerchantToken() || ''));
   }
 
   setMerchantToken(token: string, ttl: number): void {
     this.merchantToken = token;
+    // Subtract 30s buffer so we refresh slightly before true expiry
+    this.merchantTokenExpiry = Date.now() + (ttl * 1000) - 30_000;
   }
 
   getMerchantToken(): string | null {
@@ -132,11 +136,12 @@ export class AeropayService {
   }
 
   isMerchantTokenValid(): boolean {
-    return this.getMerchantToken() !== null;
+    return this.merchantToken !== null && Date.now() < this.merchantTokenExpiry;
   }
 
   setUsedForMerchantToken(token: string, ttl: number): void {
     this.usedForMerchantToken = token;
+    this.usedForMerchantTokenExpiry = Date.now() + (ttl * 1000) - 30_000;
   }
 
   getUsedForMerchantToken(): string | null {
@@ -144,7 +149,7 @@ export class AeropayService {
   }
 
   isUsedForMerchantTokenValid(): boolean {
-    return this.getUsedForMerchantToken() !== null;
+    return this.usedForMerchantToken !== null && Date.now() < this.usedForMerchantTokenExpiry;
   }
-  
+
 }

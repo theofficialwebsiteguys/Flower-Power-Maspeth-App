@@ -1,39 +1,27 @@
 <div class="guest-container">
   <div class="guest-header">
-    <h1>Join Our Rewards Program!</h1>
+    <h1>Create an Account</h1>
     <p>
-      Sign up for free or upgrade to our exclusive Membership for even more
-      perks!
+      Sign up for free to check out faster, track your orders, and save your
+      pickup and delivery info.
     </p>
   </div>
 
-  <ion-button expand="block" routerLink="/auth" [queryParams]="{ mode: 'register' }" aria-label="Sign up for our free rewards program"
+  <ion-button expand="block" routerLink="/auth" [queryParams]="{ mode: 'register' }" aria-label="Create a free account"
     >Sign Up for Free</ion-button>
 
   <div class="rewards-details" aria-live="polite">
     <div class="reward-item">
-      <ion-icon name="card-outline" aria-hidden="true"></ion-icon>
-      <div class="reward-header">Free to join</div>
-      <h3>Free Rewards Program</h3>
+      <ion-icon name="flash-outline" aria-hidden="true"></ion-icon>
+      <div class="reward-header">Faster Checkout</div>
+      <h3>Save Your Info</h3>
       <ul class="reward-list">
-        <li>Earn 1 point for every $1 spent (pre-tax)</li>
-        <li>Redeem any amount of points on all purchases</li>
+        <li>Skip re-entering your contact and delivery details every order</li>
+        <li>Track your pickup and delivery order history</li>
         <li>
-          Be the first to know about new products, premiere bundles, and
-          signature events.
+          Be the first to know about new products, deals, and events at
+          Flower Power Maspeth.
         </li>
-      </ul>
-    </div>
-    <div class="reward-item">
-      <ion-icon name="medal-outline"></ion-icon>
-      <div class="reward-header">$99 Annual fee (sign up in-store)</div>
-      <h3>Platinum Tier</h3>
-      <ul class="reward-list">
-        <li>200 bonus points upon joining</li>
-        <li>10% off all in-store purchases of $100+ (pre-tax)</li>
-        <li>Choose any item on the menu for 50% off once every quarter</li>
-        <li>Access to exclusive Flower Power promotions and events</li>
-        <li>Be the first to know about new product drops and restocks on your favorites</li>
       </ul>
     </div>
   </div>

@@ -1,11 +1,14 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.flowerpowerdispensers.application',
-  appName: 'Flower Power Dispensers',
+  // Matches android/app/build.gradle's applicationId and google-services.json's
+  // package_name — the previous value here ('com.flowerpowerdispensers.application')
+  // didn't match either, which would have broken `cap sync`/FCM wiring.
+  appId: 'com.flowerpower.app',
+  appName: 'Flower Power Maspeth',
   webDir: 'www',
   server: {
-    hostname: "com.flowerpowerdispensers.app",
+    hostname: "com.flowerpower.app",
     androidScheme: "https",
     allowNavigation: ["pay.aero.inc"]
   },

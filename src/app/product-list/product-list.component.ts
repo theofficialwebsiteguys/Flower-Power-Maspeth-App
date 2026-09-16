@@ -6,6 +6,8 @@ import { ProductsService } from '../products.service';
 import { Product } from '../product/product.model';
 import { ProductCategory } from '../product-category/product-category.model';
 import { AccessibilityService } from '../accessibility.service';
+import { DiscountService } from '../discount.service';
+import { EcomDiscount } from '../discount/discount.model';
 
 @Component({
   selector: 'app-product-list',
@@ -17,18 +19,27 @@ export class ProductListComponent implements OnInit {
   @Input() showSimilarItems: boolean = false;
   @Input() searchQuery: string = '';
 
-  constructor(private productService: ProductsService, private accessibilityService: AccessibilityService) {}
+  constructor(
+    private productService: ProductsService,
+    private accessibilityService: AccessibilityService,
+    private discountService: DiscountService
+  ) {}
 
   currentCategory: ProductCategory = 'PREROLL';
   products$: Observable<Product[]> = of([]);
 
+  activeDiscounts: EcomDiscount[] = [];
+
   hasLoaded = false;
+
+  // Placeholder count while the skeleton grid is showing.
+  skeletonItems = [1, 2, 3, 4, 5, 6];
 
   ngOnInit() {
     this.updateProducts();
 
     this.productService.currentCategory$.subscribe((category) => {
-      this.currentCategory = category; 
+      this.currentCategory = category;
       this.updateProducts();
       this.accessibilityService.announce(`Category updated to ${category}.`, 'polite');
     });
@@ -36,6 +47,10 @@ export class ProductListComponent implements OnInit {
     this.productService.currentProductFilters$.subscribe(() => {
       this.updateProducts();
       this.accessibilityService.announce('Product filters updated.', 'polite');
+    });
+
+    this.discountService.fetchDiscounts().subscribe((discounts) => {
+      this.activeDiscounts = discounts;
     });
   }
 
@@ -50,7 +65,7 @@ export class ProductListComponent implements OnInit {
       this.accessibilityService.announce(message, 'polite');
     }
   }
-  
+
   private updateProducts() {
     this.hasLoaded = false;
 

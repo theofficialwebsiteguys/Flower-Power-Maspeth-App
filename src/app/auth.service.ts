@@ -33,21 +33,35 @@ export class AuthService {
   }
 
 
+  // Guest-friendly — matches maspeth-shop's AuthService.getHeaders() exactly. The
+  // business is resolved server-side from this key (Business.api_key lookup), so
+  // login/register/forgot-password no longer need to send business_id/businessId in
+  // the body at all. Safe to call before a session exists.
   private getHeaders(): { [key: string]: string } {
+    return {
+      'x-auth-api-key': environment.db_api_key,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  // Requires an active session — throws if there isn't one. Use for actions that must
+  // only ever run for a logged-in user (logout, account deletion, etc.).
+  private getSessionHeaders(): { [key: string]: string } {
     const sessionData = localStorage.getItem('sessionData');
     const token = sessionData ? JSON.parse(sessionData).token : null;
-  
+
     if (!token) {
       console.error('No API key found, user needs to log in.');
       throw new Error('Unauthorized: No API key found');
     }
-  
+
     return {
+      'x-auth-api-key': environment.db_api_key,
       Authorization: token, // Ensure correct Bearer token format
-      'Content-Type': 'application/json', // Optional, ensures JSON data format
+      'Content-Type': 'application/json',
     };
   }
-  
+
 
   getUserInfo(): any {
     return this.userSubject.asObservable();
@@ -62,13 +76,13 @@ export class AuthService {
   }
 
   register(userData: any): Observable<any> {
-    const defaultValues = { points: 0, business_id: 1 };
-    const payload = { ...userData, ...defaultValues };
+    // No business_id in the body — the API resolves the business from x-auth-api-key.
+    const payload = { ...userData, points: 0 };
 
     return new Observable((observer) => {
       CapacitorHttp.post({
         url: `${this.apiUrl}/register`,
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         data: payload,
       })
         .then((response) => {
@@ -84,17 +98,13 @@ export class AuthService {
   }
 
   login(credentials: { email: string; password: string }): Observable<any> {
-    const payload = {
-      ...credentials,
-      businessId: '1',
-      businessName: 'Flower Power Dispensers',
-    };
-
+    // No businessId/businessName in the body — the API resolves the business from
+    // x-auth-api-key, matching maspeth-shop's AuthService.login().
     return new Observable((observer) => {
       CapacitorHttp.post({
         url: `${this.apiUrl}/login`,
-        headers: { 'Content-Type': 'application/json' },
-        data: payload,
+        headers: this.getHeaders(),
+        data: credentials,
       })
         .then((response) => {
           if (response.status === 200) {
@@ -118,7 +128,7 @@ export class AuthService {
 
 
   logout(): void {
-    const headers = this.getHeaders();
+    const headers = this.getSessionHeaders();
 
     CapacitorHttp.post({
       url: `${this.apiUrl}/logout`,
@@ -175,8 +185,8 @@ export class AuthService {
     return new Observable((observer) => {
       CapacitorHttp.post({
         url: `${this.apiUrl}/forgot-password`,
-        headers: { 'Content-Type': 'application/json' },
-        data: { email, business_id: 1 },
+        headers: this.getHeaders(),
+        data: { email },
       })
         .then(() => {
           observer.next();
@@ -214,7 +224,7 @@ export class AuthService {
       return;
     }
 
-    const headers = this.getHeaders();
+    const headers = this.getSessionHeaders();
 
     CapacitorHttp.get({
       url: `${this.apiUrl}/validate-session?location_id=${locationId}`,
@@ -245,8 +255,9 @@ export class AuthService {
 
     if (!token) {
       this.logout();
+      return;
     }
-    const headers = this.getHeaders();
+    const headers = this.getSessionHeaders();
 
     CapacitorHttp.get({
       url: `${this.apiUrl}/id/${this.getCurrentUser().id}`,
@@ -335,7 +346,7 @@ export class AuthService {
     try {
       const response = await CapacitorHttp.get({
         url: `${environment.apiUrl}/orders/user`,
-        headers: this.getHeaders(),
+        headers: this.getSessionHeaders(),
         params: { user_id: String(this.getCurrentUser().id) }, // Ensure it's a string
       });
   
@@ -367,7 +378,7 @@ export class AuthService {
   }
   
   deleteAccount(userId: number): Observable<any> {
-    const headers = this.getHeaders();
+    const headers = this.getSessionHeaders();
     const url = `${this.apiUrl}/delete/${userId}`;
   
     return new Observable((observer) => {

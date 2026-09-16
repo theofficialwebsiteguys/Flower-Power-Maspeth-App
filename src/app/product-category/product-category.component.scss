@@ -63,11 +63,12 @@
   opacity: 0.6; /* Softer glow on hover */
 }
 
-/* Larger Icon Image */
+/* Larger Icon Image — rounded so the square source art reads as a soft tile, not a hard photo edge */
 .icon-wrapper img {
   width: 120px;  /* Increased size */
   height: 120px;
   object-fit: contain;
+  border-radius: 22px;
   z-index: 0;
 }
 

@@ -14,7 +14,6 @@ import { AccessibilityService } from '../accessibility.service';
 export class HeaderComponent {
   isLoggedIn = false;
   darkModeEnabled = false;
-  userPoints = 0;
   cartItemCount = 0;
   showNotifications = false;
   unreadCount = 0; // Example unread count
@@ -36,13 +35,6 @@ export class HeaderComponent {
         this.accessibilityService.announce('You are logged out.', 'polite');
         return;
       }
-  
-      this.authService.getUserInfo().subscribe((userInfo: any) => {
-        if (userInfo) {
-          this.userPoints = userInfo.points;
-          this.accessibilityService.announce(`You have ${this.userPoints} reward points.`, 'polite');
-        }
-      });
   
       // Updated getUserNotifications call using async/await
       try {

@@ -106,10 +106,18 @@ export class SingleProductComponent implements OnInit {
       ...this.currentProduct,
       quantity: this.quantity,
     };
-  
-    this.cartService.addToCart(cartItem); 
+
+    this.cartService.addToCart(cartItem);
     this.accessibilityService.announce(`${this.currentProduct.title} added to cart. Quantity: ${this.quantity}.`, 'assertive');
-    alert('Item added to cart!');
+
+    const toast = await this.toastController.create({
+      message: `${this.currentProduct.title} added to cart`,
+      duration: 2000,
+      color: 'success',
+      position: 'bottom',
+      cssClass: 'custom-toast',
+    });
+    await toast.present();
   }
   
   getProductImage(product: any): string {

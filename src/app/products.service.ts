@@ -35,40 +35,71 @@ export class ProductsService {
 
   private lastFetchedLocationId: string | null = null;
 
+  // How long a cached product list is trusted before a fresh fetch is forced — without this,
+  // sessionStorage.getItem('products') would be served forever within the session, so
+  // POS-side changes (price, quantity, new discounts) would never reach an already-open tab.
+  private static readonly PRODUCTS_CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 hours
+  private static readonly PRODUCTS_CACHE_META_KEY = 'products_cache_meta';
+
   constructor(private http: HttpClient, private route: Router) {
     this.loadProductsFromSessionStorage();
   }
 
   private loadProductsFromSessionStorage(): void {
+    const meta = this.getCacheMeta();
+    if (!meta || this.isCacheExpired(meta.cachedAt)) {
+      return; // Missing or stale — fetchProducts() will perform a real fetch
+    }
+
     const storedProducts = sessionStorage.getItem('products');
     if (storedProducts) {
       const parsedProducts: Product[] = JSON.parse(storedProducts);
       const sortedProducts = this.sortProducts(parsedProducts);
       this.products.next(sortedProducts);
+      this.lastFetchedLocationId = meta.locationId;
     }
   }
 
-  private saveProductsToSessionStorage(products: Product[]): void {
-    sessionStorage.setItem('products', JSON.stringify(products));
+  private getCacheMeta(): { cachedAt: number; locationId: string | null } | null {
+    const raw = sessionStorage.getItem(ProductsService.PRODUCTS_CACHE_META_KEY);
+    return raw ? JSON.parse(raw) : null;
   }
 
-  fetchProducts(location_id: string, toggleVape = true): Observable<Product[]> {
+  private isCacheExpired(cachedAt: number): boolean {
+    return Date.now() - cachedAt > ProductsService.PRODUCTS_CACHE_TTL_MS;
+  }
+
+  private saveProductsToSessionStorage(products: Product[], locationId: string | null): void {
+    sessionStorage.setItem('products', JSON.stringify(products));
+    sessionStorage.setItem(
+      ProductsService.PRODUCTS_CACHE_META_KEY,
+      JSON.stringify({ cachedAt: Date.now(), locationId })
+    );
+  }
+
+  fetchProducts(location_id: string): Observable<Product[]> {
     // Clear products if location has changed
     if (this.lastFetchedLocationId && this.lastFetchedLocationId !== location_id) {
-      console.log('Location changed. Clearing previous products.');
       this.products.next([]);
-      this.saveProductsToSessionStorage([]); // optional, if you’re syncing to session storage
     }
 
-    // Return cached products if already loaded for the same location
-    if (this.products.value.length > 0 && this.lastFetchedLocationId === location_id) {
-      console.log('Products already loaded for this location.');
+    const meta = this.getCacheMeta();
+    const cacheIsFresh = !!meta && !this.isCacheExpired(meta.cachedAt) && meta.locationId === location_id;
+
+    // Return cached products if already loaded for the same location and still fresh
+    if (this.products.value.length > 0 && this.lastFetchedLocationId === location_id && cacheIsFresh) {
       return of(this.products.value);
     }
-  
+
+    this.lastFetchedLocationId = location_id;
+
+    // Matches maspeth-shop's ProductsService.fetchProducts() exactly — keepVapeCategory: 'true'
+    // (not the previous toggleVape param, which the backend doesn't recognize) keeps vape
+    // products under their own VAPE category instead of the backend folding them into another
+    // one by default.
     const options = {
       url: `${environment.apiUrl}/products/all-products`,
-      params: { location_id, toggleVape: String(toggleVape) },
+      params: { venueId: environment.venueId, keepVapeCategory: 'true', location_id: location_id || '' },
       headers: {  'x-auth-api-key': environment.db_api_key,'Content-Type': 'application/json' },
     };
   
@@ -78,7 +109,7 @@ export class ProductsService {
           if (response.status === 200) {
             const sortedProducts = this.sortProducts(response.data);
             this.products.next(sortedProducts);
-            this.saveProductsToSessionStorage(sortedProducts);
+            this.saveProductsToSessionStorage(sortedProducts, location_id);
             observer.next(sortedProducts);
             observer.complete();
           } else {
@@ -358,6 +389,7 @@ export class ProductsService {
       { category: 'PREROLL', imageUrl: 'assets/icons/prerolls.png' },
       { category: 'EDIBLE', imageUrl: 'assets/icons/edibles.png' },
       { category: 'CONCENTRATES', imageUrl: 'assets/icons/concentrates.png' },
+      { category: 'VAPE', imageUrl: 'assets/icons/vaporizers.png' },
       { category: 'BEVERAGE', imageUrl: 'assets/icons/beverages.png' },
       { category: 'TINCTURES', imageUrl: 'assets/icons/tinctures.png' },
       { category: 'TOPICAL', imageUrl: 'assets/icons/topicals.png' },

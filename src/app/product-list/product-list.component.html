@@ -1,4 +1,4 @@
-<ion-col class="list" role="list" aria-label="Filtered product list">
+<div class="product-grid" role="list" aria-label="Filtered product list">
 
   <ng-container *ngIf="(products$ | async) as products">
     <ng-container *ngIf="products.length > 0; else emptyState">
@@ -6,8 +6,8 @@
         <app-product
           *ngIf="isCategoryVisible(product.category)"
           [product]="product"
+          [activeDiscounts]="activeDiscounts"
           role="listitem"
-          [attr.aria-label]="'View details for ' + product.title"
         ></app-product>
       </ng-container>
     </ng-container>
@@ -15,14 +15,20 @@
 
   <ng-template #emptyState>
     <div *ngIf="hasLoaded; else loading" class="empty-state">
+      <ion-icon name="leaf-outline" aria-hidden="true"></ion-icon>
       <p>No products found.</p>
     </div>
   </ng-template>
 
-
   <ng-template #loading>
-    <div class="loading-container">
-      <ion-spinner name="crescent"></ion-spinner>
+    <div class="skeleton-card" *ngFor="let i of skeletonItems" aria-hidden="true">
+      <div class="skeleton-image"></div>
+      <div class="skeleton-info">
+        <div class="skeleton-line sk-brand"></div>
+        <div class="skeleton-line sk-title-1"></div>
+        <div class="skeleton-line sk-title-2"></div>
+        <div class="skeleton-line sk-price"></div>
+      </div>
     </div>
   </ng-template>
-</ion-col>
+</div>

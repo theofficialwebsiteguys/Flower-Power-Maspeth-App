@@ -50,20 +50,16 @@ img {
   }
 }
 
-.points-display {
-  font-size: 14px;
-  font-weight: bold;
-  margin-left: 8px;
-  color: var(--ion-color-primary);
-}
-
 .heading-container {
   position: sticky;
   top: 0;
   z-index: 1; /* Increase above carousel */
-  background: #fff;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: calc(5px + env(safe-area-inset-top)) 5px 5px 5px;
-  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 0 0 var(--fp-radius-lg, 18px) var(--fp-radius-lg, 18px);
+  box-shadow: var(--fp-shadow-sm, 0 1px 4px rgba(26, 58, 46, 0.08));
 }
 
 
