@@ -93,13 +93,13 @@ export class ProductsService {
 
     this.lastFetchedLocationId = location_id;
 
-    // Matches maspeth-shop's ProductsService.fetchProducts() exactly — keepVapeCategory: 'true'
-    // (not the previous toggleVape param, which the backend doesn't recognize) keeps vape
-    // products under their own VAPE category instead of the backend folding them into another
-    // one by default.
+    // keepVapeCategory: 'true' keeps vape products under their own VAPE category instead of the
+    // backend folding them into CONCENTRATES. toggleVape: 'true' tells the backend to honor the
+    // business's vape_toggle flag (App Store submission) and drop vapes when it's false — only the
+    // app sends it, so maspeth-shop and the kiosk (same business) keep showing vapes.
     const options = {
       url: `${environment.apiUrl}/products/all-products`,
-      params: { venueId: environment.venueId, keepVapeCategory: 'true', location_id: location_id || '' },
+      params: { venueId: environment.venueId, keepVapeCategory: 'true', toggleVape: 'true', location_id: location_id || '' },
       headers: {  'x-auth-api-key': environment.db_api_key,'Content-Type': 'application/json' },
     };
   
@@ -395,6 +395,17 @@ export class ProductsService {
       { category: 'TOPICAL', imageUrl: 'assets/icons/topicals.png' },
       { category: 'ACCESSORIES', imageUrl: 'assets/icons/accessories.png' },
     ];
+  }
+
+  // The backend strips vapes when the business's vape_toggle is off, so hide the VAPE tile
+  // whenever the loaded product list has none.
+  getCategories$(): Observable<CategoryWithImage[]> {
+    return this.products$.pipe(
+      map((products) => {
+        const hasVapes = products.some((p) => p.category === 'VAPE');
+        return this.getCategories().filter((c) => hasVapes || c.category !== 'VAPE');
+      })
+    );
   }
 
   getSimilarItems(): Observable<Product[]> {

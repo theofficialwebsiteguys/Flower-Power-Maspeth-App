@@ -19,7 +19,9 @@ export class CardSliderComponent implements OnInit {
   constructor(private readonly productService: ProductsService, private accessibilityService: AccessibilityService) {}
 
   ngOnInit() {
-    this.categories = this.productService.getCategories();
+    this.productService.getCategories$().subscribe((cats) => {
+      this.categories = cats;
+    });
 
     this.productService.getProducts().subscribe((products) => {
       this.products = products;
