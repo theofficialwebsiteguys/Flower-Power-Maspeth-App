@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { CartService, LoyaltyConfig } from '../cart.service';
 
 @Component({
   selector: 'app-guest',
@@ -6,7 +7,11 @@ import { Component } from '@angular/core';
   styleUrls: ['./guest.component.scss'],
 })
 export class GuestComponent {
+  /** Points rules shown in the rewards card — from the API, same as checkout. */
+  loyalty: LoyaltyConfig | null = null;
 
-  constructor() { }
+  constructor(private cartService: CartService) {
+    this.cartService.getLoyaltyConfig().then(config => this.loyalty = config);
+  }
 
 }

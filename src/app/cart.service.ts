@@ -24,6 +24,39 @@ export interface CartItem {
   id_item?: string;
 }
 
+/**
+ * Thrown by checkout() when Alleaves won't take one or more cart lines (e.g. sold out, or a batch
+ * that changed since the item was added to the cart). The partial Alleaves order has already been
+ * cancelled by the time this reaches the caller.
+ */
+export class OrderItemsUnavailableError extends Error {
+  constructor(public unavailableItems: CartItem[]) {
+    super(`Items unavailable: ${unavailableItems.map(item => item.title).join(', ')}`);
+    this.name = 'OrderItemsUnavailableError';
+  }
+}
+
+/** The API refused or failed to apply a points redemption; `message` is safe to show the customer. */
+export class PointsRedemptionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PointsRedemptionError';
+  }
+}
+
+/**
+ * The business's points rules, from GET /orders/loyalty-config — the same settings the API enforces
+ * (Dispensary-API toolbox/loyalty.js), so nothing here hard-codes its own copy.
+ *   earnRate    points per $1 of subtotal
+ *   redeemValue dollars off per point
+ *   redeemStep  points are redeemed in whole multiples of this (e.g. 100)
+ */
+export interface LoyaltyConfig {
+  earnRate: number;
+  redeemValue: number;
+  redeemStep: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -243,28 +276,24 @@ export class CartService {
       subtotal = checkoutItems.reduce((acc: number, item: any) => acc + (item.price || 0), 0);
     };
 
-    // Dead while the loyalty points program stays discontinued (points_redeem is always 0, so
-    // this loop breaks on its first iteration) — kept to match maspeth-shop's current CartService
-    // in case points redemption is ever reinstated.
-    const updateOrderItemPrices = async () => {
-      let remainingDiscount = points_redeem / 20;
-      const sortedItems = [...checkoutItems].sort((a: any, b: any) => b.price - a.price);
+    // The API checks the balance, takes the points and discounts the Alleaves order in one step,
+    // so the discount can never land without the points actually being spent.
+    const redeemPoints = async () => {
+      if (!points_redeem) return;
+      const sessionData = localStorage.getItem('sessionData');
+      const token = sessionData ? JSON.parse(sessionData).token : null;
+      if (!token) throw new PointsRedemptionError('Please log in again to use your points.');
+
       const locationId = this.settingsService.getSelectedLocationId();
-      for (const item of sortedItems) {
-        if (remainingDiscount <= 0) break;
-        const discountAmount = Math.min(Number(item.price), remainingDiscount);
-        remainingDiscount -= discountAmount;
-        const priceOverride = Number(item.price) - discountAmount;
-        const options = {
-          url: `${environment.apiUrl}/orders/alleaves/order/${id_order}/item/${item.id_item}?location_id=${locationId || ''}`,
-          method: 'PUT',
-          headers: this.getHeaders(),
-          data: {
-            price_override: priceOverride,
-            price_override_reason: 'Points redemption applied',
-          },
-        };
-        await CapacitorHttp.request(options);
+      const response = await CapacitorHttp.request({
+        url: `${environment.apiUrl}/orders/alleaves/order/${id_order}/redeem-points?location_id=${locationId || ''}`,
+        method: 'POST',
+        headers: { ...this.getHeaders(), Authorization: token },
+        data: { points: points_redeem },
+      });
+      if (response.status < 200 || response.status >= 300) {
+        const issue = response.data?.details?.issue || 'please try again';
+        throw new PointsRedemptionError(`${issue}.`);
       }
     };
 
@@ -273,13 +302,72 @@ export class CartService {
         await getUserInfo();
         await createOrder();
         await addItemsToOrder();
-        await updateOrderItemPrices();
+        await redeemPoints();
         return { user_info, id_order, checkoutItems, subtotal };
       } catch (error) {
         console.error('Checkout process failed:', error);
+        // Don't leave a half-built order sitting in the store's queue for a checkout that failed.
+        if (id_order) await this.cancelAlleavesOrder(id_order, allLeavesId);
         throw error;
       }
     })();
+  }
+
+  /**
+   * Best-effort cancel of an Alleaves order abandoned mid-checkout. Never throws — the caller is
+   * already handling a failure, and a leftover unpaid order is something the store can clean up.
+   */
+  private loyaltyConfigRequest: Promise<LoyaltyConfig | null> | null = null;
+
+  /** Points rules for this business, fetched once per session. Null if they couldn't be loaded. */
+  getLoyaltyConfig(): Promise<LoyaltyConfig | null> {
+    if (!this.loyaltyConfigRequest) {
+      const locationId = this.settingsService.getSelectedLocationId();
+      this.loyaltyConfigRequest = CapacitorHttp.request({
+        url: `${environment.apiUrl}/orders/loyalty-config?location_id=${locationId || ''}`,
+        method: 'GET',
+        headers: this.getHeaders(),
+      })
+        .then((response) => {
+          const d = response.data;
+          if (response.status < 200 || response.status >= 300 || !d) throw new Error(`status ${response.status}`);
+          return { earnRate: Number(d.earnRate) || 0, redeemValue: Number(d.redeemValue) || 0, redeemStep: Math.max(1, Number(d.redeemStep) || 1) };
+        })
+        .catch((error) => {
+          console.error('Could not load points settings:', error);
+          this.loyaltyConfigRequest = null; // try again next time
+          return null;
+        });
+    }
+    return this.loyaltyConfigRequest;
+  }
+
+  async cancelAlleavesOrder(id_order: number, id_customer: number): Promise<void> {
+    const locationId = this.settingsService.getSelectedLocationId();
+    const options = {
+      url: `${environment.apiUrl}/orders/alleaves/order/${id_order}?location_id=${locationId || ''}`,
+      method: 'PUT',
+      headers: this.getHeaders(),
+      data: { id_order, id_customer, id_location: 1000, cancel: true },
+    };
+
+    try {
+      const response = await CapacitorHttp.request(options);
+      if (response.status < 200 || response.status >= 300) {
+        console.error(`Failed to cancel abandoned Alleaves order ${id_order}:`, response.status, response.data);
+        return;
+      }
+      // Hand back any points applied to the order now rather than at the nightly sweep. The API
+      // only does this once Alleaves shows the order cancelled.
+      await CapacitorHttp.request({
+        url: `${environment.apiUrl}/orders/alleaves/order/${id_order}/release-points?location_id=${locationId || ''}`,
+        method: 'POST',
+        headers: this.getHeaders(),
+        data: {},
+      });
+    } catch (error) {
+      console.error(`Failed to cancel abandoned Alleaves order ${id_order}:`, error);
+    }
   }
 
   async createCustomer(userDetails: any) {
@@ -309,11 +397,30 @@ export class CartService {
     };
 
     return CapacitorHttp.request(options)
-      .then((response) => response.data)
+      .then((response) => {
+        // CapacitorHttp resolves on 4xx/5xx — a rejected order would otherwise come back as an
+        // error body with no id_order and checkout would carry on as if the order existed.
+        if (response.status < 200 || response.status >= 300 || !response.data?.id_order) {
+          throw new Error(`Alleaves order creation failed (status ${response.status}): ${JSON.stringify(response.data)}`);
+        }
+        return response.data;
+      })
       .catch((error) => {
         console.error('Error creating order:', error);
         throw error;
       });
+  }
+
+  /**
+   * Alleaves returns the order's lines after each add, one line per unit. When those lines are
+   * present, confirm the full requested quantity of this batch is actually on the order.
+   */
+  private orderHasBatchQuantity(lines: any[], item: any): boolean {
+    if (!lines.some((line) => line?.id_batch != null)) return true; // no batch info to check against
+    const units = lines
+      .filter((line) => String(line.id_batch) === String(item.id_batch))
+      .reduce((sum, line) => sum + (Number(line.quantity) || 1), 0);
+    return units >= (Number(item.quantity) || 1);
   }
 
   async addCheckoutItemsToOrder(idOrder: number, checkoutItems: any[]) {
@@ -322,6 +429,7 @@ export class CartService {
 
     const apiUrl = `${environment.apiUrl}/orders/alleaves/order/${idOrder}/item?location_id=${locationId || ''}`;
     const addedItems: any[] = [];
+    const unavailableItems: any[] = [];
 
     for (const item of checkoutItems) {
       const body = {
@@ -339,9 +447,17 @@ export class CartService {
 
       try {
         const response = await CapacitorHttp.request(options);
+        const lines: any[] | null = Array.isArray(response?.data?.items) ? response.data.items : null;
 
-        if (response?.data?.items?.length > 0) {
-          response.data.items.forEach((resItem: any) => {
+        // The backend forwards Alleaves' own status, so a non-2xx means the item was rejected.
+        if (response.status < 200 || response.status >= 300 || (lines && !this.orderHasBatchQuantity(lines, item))) {
+          console.error(`Alleaves rejected item (id_batch: ${item.id_batch}):`, response.status, response.data);
+          unavailableItems.push(item);
+          continue;
+        }
+
+        if (lines && lines.length > 0) {
+          lines.forEach((resItem: any) => {
             const exists = addedItems.some((added) => added.id_item === resItem.id_item);
             if (!exists) {
               addedItems.push({
@@ -355,8 +471,14 @@ export class CartService {
         }
       } catch (error) {
         console.error(`Error adding item (id_batch: ${item.id_batch}):`, error);
-        continue;
+        unavailableItems.push(item);
       }
+    }
+
+    // Failed adds used to be logged and skipped, so checkout went on to charge for items that
+    // never made it onto the order — an empty order when every item failed.
+    if (unavailableItems.length > 0) {
+      throw new OrderItemsUnavailableError(unavailableItems);
     }
 
     return addedItems;
@@ -378,7 +500,12 @@ export class CartService {
 
     return CapacitorHttp.request(options)
       .then((response) => {
-        this.sendOrderConfirmation(email, pos_order_id);
+        // The order already exists in Alleaves by now, so the customer's email goes out even if
+        // our own record fails to save.
+        this.sendOrderConfirmation(email, pos_order_id).catch(() => {});
+        if (response.status < 200 || response.status >= 300) {
+          throw new Error(`Order record failed (status ${response.status}): ${JSON.stringify(response.data)}`);
+        }
         return response.data;
       })
       .catch((error) => {

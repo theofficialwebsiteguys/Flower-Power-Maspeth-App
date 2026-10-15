@@ -222,6 +222,32 @@
         Deals Applied:
         <span>-{{ totalEstimatedSavings | currency }}</span>
       </p>
+      <ng-container *ngIf="canRedeemPoints">
+        <p>
+          Available Points: <span>{{ checkoutInfo.user_info.points }}</span>
+        </p>
+        <div class="points-options" role="radiogroup" aria-label="Use your points">
+          <button type="button" class="points-option" role="radio"
+                  [class.selected]="pointsToRedeem === 0" [attr.aria-checked]="pointsToRedeem === 0"
+                  (click)="selectPoints(0)">
+            <span class="points-option-amount">None</span>
+          </button>
+          <button type="button" class="points-option" role="radio" *ngFor="let option of pointOptions"
+                  [class.selected]="pointsToRedeem === option" [attr.aria-checked]="pointsToRedeem === option"
+                  (click)="selectPoints(option)">
+            <span class="points-option-amount">{{ option }} pts</span>
+            <span class="points-option-value">{{ option * pointValue | currency }} off</span>
+          </button>
+        </div>
+        <p class="points-note" *ngIf="pointOptions.length === 0">Your order needs to be at least {{ pointsStep * pointValue | currency }} to use points.</p>
+        <p *ngIf="pointsToRedeem > 0">
+          Points Discount ({{ pointsToRedeem }} pts):
+          <span>-{{ pointsDiscount | currency }}</span>
+        </p>
+        <p class="points-note">Every {{ pointsStep }} points = {{ pointsStep * pointValue | currency }} off. Orders that use points don't earn new points.</p>
+      </ng-container>
+      <p class="points-note" *ngIf="pointsUntilRedeemable > 0">You have {{ checkoutInfo.user_info.points }} points — {{ pointsUntilRedeemable }} more and you can take {{ pointsStep * pointValue | currency }} off.</p>
+      <p class="points-note" *ngIf="pointsToEarn > 0">You'll earn about {{ pointsToEarn }} points once this order is picked up.</p>
       <p *ngIf="appliedDeliveryFee > 0">
         Delivery Fee: <span>{{ appliedDeliveryFee | currency }}</span>
       </p>

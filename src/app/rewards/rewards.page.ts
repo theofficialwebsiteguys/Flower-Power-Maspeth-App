@@ -50,6 +50,11 @@ export class RewardsPage implements OnInit {
   }
   
 
+  ionViewWillEnter(): void {
+    // Pick up points earned or spent since the user was last loaded.
+    if (this.isLoggedIn) this.authService.updateUserData();
+  }
+
   ionViewDidEnter(): void {
     this.scrollToTop(); // Scroll to top when the page is fully loaded
   }

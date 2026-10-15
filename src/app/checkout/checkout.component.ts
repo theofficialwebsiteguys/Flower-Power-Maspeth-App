@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { CartService } from '../cart.service';
+import { CartService, LoyaltyConfig, OrderItemsUnavailableError, PointsRedemptionError } from '../cart.service';
 import { LoadingController, ToastController } from '@ionic/angular';
 import { AccessibilityService } from '../accessibility.service';
 import { AuthService } from '../auth.service';
@@ -134,6 +134,10 @@ export class CheckoutComponent implements OnInit {
     this.discountService.fetchDiscounts().subscribe((discounts) => {
       this.activeDiscounts = discounts;
       this.cartDiscounts = this.discountService.getCartDiscounts(this.checkoutInfo.cart, this.activeDiscounts);
+      this.updateTotals();
+    });
+    this.cartService.getLoyaltyConfig().then((config) => {
+      this.loyalty = config;
       this.updateTotals();
     });
 
@@ -561,6 +565,65 @@ export class CheckoutComponent implements OnInit {
     this.finalTotal = this.finalSubtotal + this.finalTax;
   }
 
+  /** This business's points rules from the API; the points UI stays hidden until they load. */
+  loyalty: LoyaltyConfig | null = null;
+  pointsToRedeem: number = 0;
+
+  /** Dollars off per point. */
+  get pointValue(): number {
+    return this.loyalty?.redeemValue ?? 0;
+  }
+
+  /** Points are redeemed in whole multiples of this. */
+  get pointsStep(): number {
+    return this.loyalty?.redeemStep ?? 1;
+  }
+
+  private get isCustomerAccount(): boolean {
+    const user = this.checkoutInfo?.user_info;
+    return !!user?.id && (user.role ?? 'customer') === 'customer';
+  }
+
+  /** Logged-in customers with at least one full set of points can redeem (the API enforces the same). */
+  get canRedeemPoints(): boolean {
+    return this.pointValue > 0 && this.isCustomerAccount && Number(this.checkoutInfo.user_info.points) >= this.pointsStep;
+  }
+
+  /** Customers who have some points but not a full set yet — shown how close they are. */
+  get pointsUntilRedeemable(): number {
+    const points = Number(this.checkoutInfo?.user_info?.points) || 0;
+    return this.pointValue > 0 && this.isCustomerAccount && points > 0 && points < this.pointsStep ? this.pointsStep - points : 0;
+  }
+
+  /** Largest whole set the balance and the post-deal subtotal can both cover. */
+  get maxRedeemablePoints(): number {
+    if (!this.canRedeemPoints) return 0;
+    const max = Math.min(Number(this.checkoutInfo.user_info.points), this.discountedSubtotal / this.pointValue);
+    return Math.max(0, Math.floor(max / this.pointsStep) * this.pointsStep);
+  }
+
+  /** The choices shown at checkout: 100, 200, … up to maxRedeemablePoints. */
+  get pointOptions(): number[] {
+    const options: number[] = [];
+    for (let points = this.pointsStep; points <= this.maxRedeemablePoints; points += this.pointsStep) options.push(points);
+    return options;
+  }
+
+  selectPoints(points: number) {
+    this.pointsToRedeem = points;
+    this.updateTotals();
+  }
+
+  get pointsDiscount(): number {
+    return Math.round(this.pointsToRedeem * this.pointValue * 100) / 100;
+  }
+
+  /** Estimate only — the API awards floor(Alleaves subtotal) once the order is picked up, and nothing when points are used. */
+  get pointsToEarn(): number {
+    const earnRate = this.loyalty?.earnRate ?? 0;
+    return this.isCustomerAccount && this.pointsToRedeem === 0 ? Math.floor(this.finalSubtotal * earnRate) : 0;
+  }
+
   updateTotals() {
     this.originalSubtotal = this.checkoutInfo.cart.reduce(
       (total: number, item: any) => total + (parseFloat(item.price) * item.quantity),
@@ -568,7 +631,10 @@ export class CheckoutComponent implements OnInit {
     );
 
     this.discountedSubtotal = this.discountService.getDiscountedSubtotal(this.checkoutInfo.cart, this.activeDiscounts);
-    this.finalSubtotal = this.discountedSubtotal;
+    // Deals can load after points were picked, lowering the cap — keep the selection a valid set.
+    const picked = Math.floor((Number(this.pointsToRedeem) || 0) / this.pointsStep) * this.pointsStep;
+    this.pointsToRedeem = Math.min(Math.max(0, picked), this.maxRedeemablePoints);
+    this.finalSubtotal = Math.max(0, this.discountedSubtotal - this.pointsDiscount);
     this.finalTax = this.finalSubtotal * 0.13;
     this.finalTotal = this.finalSubtotal + this.finalTax + this.appliedDeliveryFee;
 
@@ -622,10 +688,23 @@ export class CheckoutComponent implements OnInit {
     });
     await loading.present();
 
-    // Tracks whether AeroPay was charged so we can show the right message if order creation fails after payment
-    let aeropayPaymentSucceeded = false;
+    // Order of operations is deliberate, so a customer is never charged for an order that didn't
+    // fully make it into Alleaves:
+    //   1. authorize the AeroPay payment (a decline stops here, before anything exists in Alleaves)
+    //   2. build the Alleaves order and confirm every item landed (on failure, release the authorization)
+    //   3. capture the payment (on a decline, release it and cancel the Alleaves order)
+    //   4. record the order on our side — non-fatal, the order is already real by this point
+    const payingWithAeropay = this.selectedPaymentMethod === 'aeropay';
+    let preauthTransactionId: string | null = null;
+    let alleavesOrderId: number | null = null;
+    let orderComplete = false;
 
     try {
+      if (payingWithAeropay && (!this.selectedBankId || !this.aeropayUserId)) {
+        await this.presentToast('Please select a bank account to continue with AeroPay.', 'danger');
+        return;
+      }
+
       const user = this.checkoutInfo.user_info;
 
       const alleavesResponse = await this.cartService.createAlleavesCustomer({
@@ -649,15 +728,13 @@ export class CheckoutComponent implements OnInit {
       const alleavesCustomerIdForOrder = (!this.isGuest && user.alleaves_customer_id) ? user.alleaves_customer_id : newAllLeavesId;
       if (!alleavesCustomerIdForOrder) {
         await this.presentToast('Unable to prepare your order. Please try again.', 'danger');
-        this.isLoading = false;
-        await loading.dismiss();
         return;
       }
 
-      // Loyalty points program has been discontinued — never earn or redeem points on new orders.
-      const points_redeem = 0;
+      // The API applies the redemption to the Alleaves order itself (checkout() below) and works out
+      // points earned from the completed Alleaves order, so points_add is informational only.
+      const points_redeem = this.canRedeemPoints ? this.pointsToRedeem : 0;
       const points_add = 0;
-      let pos_order_id = 0;
 
       const deliveryAddress =
         this.selectedOrderType === 'delivery'
@@ -672,76 +749,57 @@ export class CheckoutComponent implements OnInit {
             }
           : null;
 
-      if (this.selectedPaymentMethod === 'aeropay') {
-        if (!this.selectedBankId || !this.aeropayUserId) {
-          this.presentToast('Please select a bank account to continue with AeroPay.', 'danger');
-          this.isLoading = false;
-          await loading.dismiss();
-          return;
-        }
+      const notChargedNote = payingWithAeropay ? ' You have not been charged.' : '';
 
-        const tokenResponse = await this.aeropayService.fetchUsedForMerchantToken(this.aeropayUserId).toPromise();
-        if (!tokenResponse?.data?.token) {
-          console.error('AeroPay Token Failed:', tokenResponse?.data);
-          this.presentToast(`Payment authorization failed: ${tokenResponse?.data?.error?.message || 'please try again.'}`, 'danger');
-          this.isLoading = false;
-          await loading.dismiss();
-          return;
-        }
-
-        const amountInPennies = Math.round(this.finalTotal * 100);
-        const preauthResponse = await this.aeropayService.createPreauthTransaction(
-          amountInPennies,
-          this.selectedBankId
-        ).toPromise();
-
-        const preauthTransactionId = preauthResponse?.data?.transaction?.id;
-        if (!preauthTransactionId) {
-          console.error('AeroPay Preauth Failed:', preauthResponse?.data);
-          const reason = preauthResponse?.data?.error?.message || 'Payment was declined.';
-          this.presentToast(`Payment failed: ${reason} Please try again or use a different payment method.`, 'danger');
-          this.isLoading = false;
-          await loading.dismiss();
-          return;
-        }
-
-        // Capture uses the merchant-scoped token — a different scope than the preauth call.
-        const merchantTokenResponse = await this.aeropayService.fetchMerchantToken().toPromise();
-        if (!merchantTokenResponse?.data?.token) {
-          console.error('AeroPay Merchant Token Failed:', merchantTokenResponse?.data);
-          this.presentToast('Your payment was authorized but could not be captured. Please contact us before retrying.', 'danger');
-          this.isLoading = false;
-          await loading.dismiss();
-          return;
-        }
-
-        const captureResponse = await this.aeropayService.capturePreauthTransaction(preauthTransactionId).toPromise();
-        if (!captureResponse?.data?.transaction) {
-          console.error('AeroPay Capture Failed:', captureResponse?.data);
-          const reason = captureResponse?.data?.error?.message || 'Payment could not be captured.';
-          this.presentToast(`Payment failed: ${reason} Please try again or use a different payment method.`, 'danger');
-          this.isLoading = false;
-          await loading.dismiss();
-          return;
-        }
-
-        aeropayPaymentSucceeded = true;
-        this.presentToast('Payment successful!', 'success');
+      // 1. Authorize
+      if (payingWithAeropay) {
+        preauthTransactionId = await this.authorizeAeropayPayment();
+        if (!preauthTransactionId) return; // error already shown
       }
 
-      const response = await this.cartService.checkout(points_redeem, this.selectedOrderType, deliveryAddress, alleavesCustomerIdForOrder);
+      // 2. Build the Alleaves order — checkout() cancels its own partial order if anything fails
+      let order: Awaited<ReturnType<CartService['checkout']>>;
+      try {
+        order = await this.cartService.checkout(points_redeem, this.selectedOrderType, deliveryAddress, alleavesCustomerIdForOrder);
+      } catch (error) {
+        console.error('Order creation failed:', error);
+        if (preauthTransactionId) await this.voidAeropayPreauth(preauthTransactionId);
+        if (error instanceof OrderItemsUnavailableError) {
+          const names = error.unavailableItems.map(item => item.title).join(', ');
+          await this.showOrderError(`Sorry, these items are no longer available in the quantity requested: ${names}. Please update your cart and try again.${notChargedNote}`);
+        } else if (error instanceof PointsRedemptionError) {
+          await this.showOrderError(`We couldn't apply your points: ${error.message} Your points were not used.${notChargedNote}`);
+        } else {
+          await this.showOrderError(`We couldn't submit your order. Please try again.${notChargedNote}`);
+        }
+        return;
+      }
+      alleavesOrderId = order.id_order;
 
-      pos_order_id = response.id_order;
+      // 3. Capture
+      if (payingWithAeropay) {
+        const captured = await this.captureAeropayPayment(preauthTransactionId!, alleavesOrderId, alleavesCustomerIdForOrder);
+        if (!captured) return; // error already shown, cleanup already done
+        this.presentToast('Payment successful!', 'success');
+      }
+      orderComplete = true;
 
-      await this.cartService.placeOrder(
-        user.id,
-        pos_order_id,
-        points_add,
-        points_redeem,
-        this.finalSubtotal,
-        this.checkoutInfo.cart,
-        user.email
-      );
+      // 4. Record on our side
+      try {
+        await this.cartService.placeOrder(
+          user.id,
+          alleavesOrderId,
+          points_add,
+          points_redeem,
+          this.finalSubtotal,
+          this.checkoutInfo.cart,
+          user.email
+        );
+      } catch (error) {
+        console.error(`Alleaves order ${alleavesOrderId} was placed but could not be recorded:`, error);
+      }
+      // Show the post-redemption balance straight away.
+      if (points_redeem) this.authService.updateUserData();
 
       this.orderPlaced.emit();
 
@@ -753,20 +811,123 @@ export class CheckoutComponent implements OnInit {
           : 'Your pickup order has been placed!';
 
       if (user.id) {
-        await this.fcmService.sendPushNotification(user.id, 'Order Confirmed', orderTypeMessage);
+        try {
+          await this.fcmService.sendPushNotification(user.id, 'Order Confirmed', orderTypeMessage);
+        } catch (error) {
+          console.error('Order confirmation push failed:', error);
+        }
       }
     } catch (error: any) {
       console.error('Error placing order:', error);
-      if (aeropayPaymentSucceeded) {
-        // Payment went through but order creation failed — do NOT let them retry or they'll be charged again
-        await this.presentToast('Your payment was processed but the order could not be submitted. Please contact us immediately and do not place the order again.');
+      if (orderComplete) {
+        await this.presentToast('Your order was placed, but something went wrong loading the confirmation. Please do not place the order again.');
+      } else if (!alleavesOrderId) {
+        // Nothing was built in Alleaves yet, so an outstanding authorization is safe to release.
+        if (preauthTransactionId) await this.voidAeropayPreauth(preauthTransactionId);
+        await this.showOrderError(`Error placing order. Please try again.${payingWithAeropay ? ' You have not been charged.' : ''}`);
       } else {
-        await this.presentToast('Error placing order: ' + (error?.message ?? 'please try again.'));
+        await this.showOrderError(`Something went wrong placing your order (#${alleavesOrderId}). Please contact the store before trying again.`);
       }
-      this.accessibilityService.announce('There was an error placing your order. Please try again.', 'polite');
     } finally {
       this.isLoading = false;
       await loading.dismiss();
+    }
+  }
+
+  private async showOrderError(message: string) {
+    await this.presentToast(message);
+    this.accessibilityService.announce('There was an error placing your order.', 'polite');
+  }
+
+  /** Step 1 of placeOrder(). Returns the preauth transaction id, or null (with the error shown) if declined. */
+  private async authorizeAeropayPayment(): Promise<string | null> {
+    try {
+      const tokenResponse = await this.aeropayService.fetchUsedForMerchantToken(this.aeropayUserId!).toPromise();
+      if (!tokenResponse?.data?.token) {
+        console.error('AeroPay Token Failed:', tokenResponse?.data);
+        await this.showOrderError(`Payment authorization failed: ${tokenResponse?.data?.error?.message || 'please try again.'}`);
+        return null;
+      }
+
+      const amountInPennies = Math.round(this.finalTotal * 100);
+      const preauthResponse = await this.aeropayService.createPreauthTransaction(
+        amountInPennies,
+        this.selectedBankId!
+      ).toPromise();
+
+      const preauthTransactionId = preauthResponse?.data?.transaction?.id;
+      if (!preauthTransactionId) {
+        console.error('AeroPay Preauth Failed:', preauthResponse?.data);
+        const reason = preauthResponse?.data?.error?.message || 'Payment was declined.';
+        await this.showOrderError(`Payment failed: ${reason} Please try again or use a different payment method.`);
+        return null;
+      }
+      return preauthTransactionId;
+    } catch (error) {
+      console.error('AeroPay Error:', error);
+      await this.showOrderError('Payment could not be processed. Please check your connection and try again.');
+      return null;
+    }
+  }
+
+  /**
+   * Step 3 of placeOrder(): capture payment for an order that already exists in Alleaves.
+   * Returns true once captured. On a definite decline, releases the authorization and cancels
+   * the Alleaves order. If AeroPay can't be reached, whether the capture went through is unknown,
+   * so the order is left in place for the store to check — cancelling it could strand a payment.
+   */
+  private async captureAeropayPayment(preauthTransactionId: string, alleavesOrderId: number, alleavesCustomerId: number): Promise<boolean> {
+    let captureResponse: any;
+    try {
+      // Capture uses the merchant-scoped token — a different scope than the preauth call.
+      const merchantTokenResponse = await this.aeropayService.fetchMerchantToken().toPromise();
+      if (!merchantTokenResponse?.data?.token) {
+        // Capture was never attempted, so nothing was charged. Without a merchant token the
+        // authorization can't be voided either, but it expires on its own without charging.
+        console.error('AeroPay Merchant Token Failed:', merchantTokenResponse?.data);
+        await this.cartService.cancelAlleavesOrder(alleavesOrderId, alleavesCustomerId);
+        await this.showOrderError('Payment could not be completed. You have not been charged. Please try again.');
+        return false;
+      }
+
+      captureResponse = await this.aeropayService.capturePreauthTransaction(preauthTransactionId).toPromise();
+    } catch (error) {
+      console.error(`AeroPay capture outcome unknown for Alleaves order ${alleavesOrderId}:`, error);
+      await this.showOrderError(`We couldn't confirm your payment. Your order (#${alleavesOrderId}) was received — please contact the store before trying again so you aren't charged twice.`);
+      return false;
+    }
+
+    if (captureResponse?.data?.transaction) return true;
+
+    if (captureResponse?.data?.error) {
+      console.error('AeroPay Capture Failed:', captureResponse.data);
+      await this.voidAeropayPreauth(preauthTransactionId);
+      await this.cartService.cancelAlleavesOrder(alleavesOrderId, alleavesCustomerId);
+      const reason = captureResponse.data.error.message || 'Payment could not be captured.';
+      await this.showOrderError(`Payment failed: ${reason} You have not been charged. Please try again or use a different payment method.`);
+      return false;
+    }
+
+    // e.g. a 5xx with no AeroPay error body — can't tell whether the capture went through
+    console.error(`AeroPay capture outcome unknown for Alleaves order ${alleavesOrderId}:`, captureResponse?.status, captureResponse?.data);
+    await this.showOrderError(`We couldn't confirm your payment. Your order (#${alleavesOrderId}) was received — please contact the store before trying again so you aren't charged twice.`);
+    return false;
+  }
+
+  /** Releases an uncaptured authorization. Best-effort: if it fails, the authorization expires on its own without charging. */
+  private async voidAeropayPreauth(preauthTransactionId: string): Promise<void> {
+    try {
+      const merchantTokenResponse = await this.aeropayService.fetchMerchantToken().toPromise();
+      if (!merchantTokenResponse?.data?.token) {
+        console.error('AeroPay Merchant Token Failed (preauth void):', merchantTokenResponse?.data);
+        return;
+      }
+      const voidResponse = await this.aeropayService.voidPreauthTransaction(preauthTransactionId).toPromise();
+      if (voidResponse?.data?.transaction?.status !== 'canceled') {
+        console.error(`AeroPay preauth ${preauthTransactionId} void not confirmed:`, voidResponse?.data);
+      }
+    } catch (error) {
+      console.error(`AeroPay preauth ${preauthTransactionId} void failed:`, error);
     }
   }
 

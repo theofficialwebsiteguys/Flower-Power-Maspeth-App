@@ -44,6 +44,18 @@ export class AeropayService {
     return CapacitorHttp.get(options);
   }
 
+  private async httpDelete(url: string, token?: string): Promise<any> {
+    const options: any = {
+      url: url,
+      headers: {
+        'Content-Type': 'application/json',
+        'accept': 'application/json',
+        ...(token ? { 'authorization': `Bearer ${token}` } : {})
+      }
+    };
+    return CapacitorHttp.delete(options);
+  }
+
   fetchMerchantToken(): Observable<any> {
     const payload = {
       scope: 'merchant',
@@ -123,6 +135,11 @@ export class AeropayService {
   capturePreauthTransaction(preauthTransactionId: string): Observable<any> {
     const payload = { id: preauthTransactionId };
     return from(this.httpPost(`${environment.aeropay_url}/v2/capturePreauthTransaction`, payload, this.getMerchantToken() || ''));
+  }
+
+  /** Cancels an uncaptured preauth (merchant-scoped token). Success returns {transaction:{status:'canceled'}}. */
+  voidPreauthTransaction(preauthTransactionId: string): Observable<any> {
+    return from(this.httpDelete(`${environment.aeropay_url}/v2/preauthTransaction/${preauthTransactionId}`, this.getMerchantToken() || ''));
   }
 
   setMerchantToken(token: string, ttl: number): void {

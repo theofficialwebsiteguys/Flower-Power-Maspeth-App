@@ -1,16 +1,26 @@
 <div class="guest-container">
   <div class="guest-header">
-    <h1>Create an Account</h1>
+    <h1>Join Our Rewards Program!</h1>
     <p>
-      Sign up for free to check out faster, track your orders, and save your
-      pickup and delivery info.
+      Sign up for free to earn points on every order, check out faster, and
+      track your orders.
     </p>
   </div>
 
-  <ion-button expand="block" routerLink="/auth" [queryParams]="{ mode: 'register' }" aria-label="Create a free account"
+  <ion-button expand="block" routerLink="/auth" [queryParams]="{ mode: 'register' }" aria-label="Sign up for our free rewards program"
     >Sign Up for Free</ion-button>
 
   <div class="rewards-details" aria-live="polite">
+    <div class="reward-item" *ngIf="loyalty && loyalty.earnRate > 0">
+      <ion-icon name="card-outline" aria-hidden="true"></ion-icon>
+      <div class="reward-header">Free to join</div>
+      <h3>Free Rewards Program</h3>
+      <ul class="reward-list">
+        <li>Earn {{ loyalty.earnRate }} point{{ loyalty.earnRate === 1 ? '' : 's' }} for every $1 spent (before tax) on orders placed on our website, app, or in-store kiosk</li>
+        <li *ngIf="loyalty.redeemValue > 0">Every {{ loyalty.redeemStep }} points = {{ loyalty.redeemStep * loyalty.redeemValue | currency }} off — redeem in sets of {{ loyalty.redeemStep }} at checkout</li>
+        <li>Points are added once your order is picked up. Orders that use points don't earn points.</li>
+      </ul>
+    </div>
     <div class="reward-item">
       <ion-icon name="flash-outline" aria-hidden="true"></ion-icon>
       <div class="reward-header">Faster Checkout</div>
